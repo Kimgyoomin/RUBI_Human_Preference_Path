@@ -16,31 +16,40 @@
       "sha256": "bb7c45952e7471975c024127f8c8814f997ef1194e56f6c271f3834343939732"
     },
     {
-      "path": "meshes/BODY.STL"
+      "path": "meshes/BODY.STL",
+      "sha256": "7ce43bdab7f6006ea45c9e89933a6d7a89949a302b2ec2097cfa0f60a924501a"
     },
     {
-      "path": "meshes/L_HIP.STL"
+      "path": "meshes/L_HIP.STL",
+      "sha256": "224c506ec7452eb0dc650c0e3dc1553b565e4f5760058d3fe3f71598b714f634"
     },
     {
-      "path": "meshes/L_THIGH.STL"
+      "path": "meshes/L_THIGH.STL",
+      "sha256": "69132f5ec359e00799128e9c6fa0cb6199216b19d96a944598ff4f40b4dec9a2"
     },
     {
-      "path": "meshes/L_CALF.STL"
+      "path": "meshes/L_CALF.STL",
+      "sha256": "c7deabafdc6a5a98f3e21d90e3f7c7afbac8ee56ffbba6b13b9a1d6a43f4e766"
     },
     {
-      "path": "meshes/L_TIP.STL"
+      "path": "meshes/L_TIP.STL",
+      "sha256": "7fb4857cb9091f96e57a8ed68c6e26881802753f7a099287f7d20d66673aa58f"
     },
     {
-      "path": "meshes/R_HIP.STL"
+      "path": "meshes/R_HIP.STL",
+      "sha256": "26b021bc61e47dc45c675e81082f1f45b4e3ab1e63778c5bc318993c39c4d763"
     },
     {
-      "path": "meshes/R_THIGH.STL"
+      "path": "meshes/R_THIGH.STL",
+      "sha256": "3e0f4965d2574101bb3ff84e5ee55aefb82de7beb1af296ba04e09e25745d0c0"
     },
     {
-      "path": "meshes/R_CALF.STL"
+      "path": "meshes/R_CALF.STL",
+      "sha256": "9da8cb3d7a08a3b1d75450eb31f0e3696be05434deef2f8d6f40919b43579f4b"
     },
     {
-      "path": "meshes/R_TIP.STL"
+      "path": "meshes/R_TIP.STL",
+      "sha256": "93ec7016e3dffa67a21ce08840afa38936603ca5a7e65ef07a3e8affe6e15b38"
     }
   ]
 }
