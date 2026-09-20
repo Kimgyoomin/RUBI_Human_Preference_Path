@@ -1,0 +1,17 @@
+node_modules/
+dist/
+_upstream/
+data/
+.env
+.env.*
+!.env.example
+*.sqlite*
+private_assets/
+__pycache__/
+artifacts/
+*.onnx
+*.stl
+*.STL
+!public/models/rubi/encoder.onnx
+!public/models/rubi/policy.onnx
+!public/models/rubi/meshes/*.STL
