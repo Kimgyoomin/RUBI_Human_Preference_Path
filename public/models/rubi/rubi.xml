@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Derived from user-provided rubi.xml: comments and external world include removed; robot parameters unchanged. -->
+<mujoco model="RUBI">
+  <option iterations="100" timestep="0.002" solver="PGS" gravity="0 0 -9.81" />
+  <compiler angle="radian" meshdir="meshes" eulerseq="zyx" autolimits="true" fitaabb="true" />
+  <visual>
+    <map force="0.01" zfar="30" />
+    <scale forcewidth="0.075" contactwidth="0.15" contactheight="0.05" jointlength="0.7" framewidth="0.05" framelength="0.5" />
+    <rgba haze="0.15 0.25 0.35 1" />
+    <global offwidth="2560" offheight="1440" elevation="-20" azimuth="120" />
+  </visual>
+  <statistic center="0 0 0.7" />
+  <default>
+    <joint limited="true" damping="0.01" armature="0.01" frictionloss="0.001" />
+    <geom condim="3" contype="1" conaffinity="15" friction="0.9 0.9" solref="0.001 1" />
+    <motor ctrllimited="true" />
+    <equality solref="0.001 1" />
+    <default class="visualgeom">
+      <geom group="1" condim="1" contype="0" conaffinity="0" />
+    </default>
+    <default class="foot">
+      <geom group="2" type="sphere" size="0.005" priority="1" friction="0.9 0.9" condim="3" contype="1" conaffinity="15" />
+    </default>
+    <default class="RMD_X8_90">
+      <joint frictionloss="0.359645908223244" damping="0.130617712993805" armature="0.084040769086151" />
+    </default>
+    <default class="RMD_X12_150">
+      <joint frictionloss="0.226537899603487" damping="0.250538652440252" armature="0.087396415395941" />
+    </default>
+    <default class="RMD_X12_150_diff_hip">
+      <joint frictionloss="0.4530757992" damping="0.50107730488" armature="0.17479283079" />
+    </default>
+    <default class="RMD_X12_150_diff_knee">
+      <joint frictionloss="3.39806849405" damping="0.50107730488" armature="0.17479283079" />
+    </default>
+  </default>
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1=".3 .5 .7" rgb2="0 0 0" width="32" height="512" />
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".1 .2 .3" rgb2=".2 .3 .4" />
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true" reflectance=".2" />
+    <material name="box_material" rgba="0.8 0.2 0.2 1" />
+  </asset>
+  <asset>
+    <mesh name="BODY" content_type="model/stl" file="BODY.STL" />
+    <mesh name="L_HIP" content_type="model/stl" file="L_HIP.STL" />
+    <mesh name="L_THIGH" content_type="model/stl" file="L_THIGH.STL" />
+    <mesh name="L_CALF" content_type="model/stl" file="L_CALF.STL" />
+    <mesh name="L_TIP" content_type="model/stl" file="L_TIP.STL" />
+    <mesh name="R_HIP" content_type="model/stl" file="R_HIP.STL" />
+    <mesh name="R_THIGH" content_type="model/stl" file="R_THIGH.STL" />
+    <mesh name="R_CALF" content_type="model/stl" file="R_CALF.STL" />
+    <mesh name="R_TIP" content_type="model/stl" file="R_TIP.STL" />
+  </asset>
+  <worldbody>
+    <light directional="true" diffuse="0.4 0.4 0.4" specular="0.1 0.1 0.1" pos="0 0 5.0" dir="0 0 -1" castshadow="false" />
+    <light directional="true" diffuse="0.6 0.6 0.6" specular="0.2 0.2 0.2" pos="0 0 4" dir="0 0 -1" />
+    <geom name="floor" size="0 0 .05" type="plane" material="grid" condim="3" conaffinity="15" />
+    <camera name="fixed" pos="0 -3.0 1.5853562319157715" xyaxes="1 0 0 0 0 1" />
+    <camera name="track" mode="trackcom" pos="0 -3.0 1.5853562319157715" xyaxes="1 0 0 0 0 1" />
+    <body name="BODY" pos="0 0 0.65" quat="1 0 0 0">
+      <freejoint name="root" />
+      <inertial pos="-0.00972 0.00267 0.03209" mass="17.3057" fullinertia="0.20446 0.37832 0.41100 0.00163 -0.01989 -0.00215" />
+      <site name="imu_site" size="0.01" pos="0 0 0" />
+      <geom type="mesh" rgba="1.0 1.0 1.0 1" mesh="BODY" class="visualgeom" />
+      <geom type="box" rgba="0 0.5 0 0.0" pos="-0.0225 0 0" size="0.192 0.005 0.072" group="1" />
+      <geom type="box" rgba="0 0.5 0 0.0" pos="0.128 0 0" size="0.0415 0.140 0.083" group="1" />
+      <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0.128 0.1 0" size="0.0645 0.0415" quat="0.707107 0 0.707107 0" group="1" />
+      <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0.128 -0.1 0" size="0.0645 0.0415" quat="0.707107 0 0.707107 0" group="1" />
+      <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0.2095 0 0.090" size="0.005 0.060" quat="0.707107 0.707107 0 0" group="1" />
+      <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0.2095 0 -0.090" size="0.005 0.060" quat="0.707107 0.707107 0 0" group="1" />
+      <geom type="box" rgba="0 0.5 0 0.0" pos="-0.1635 0 0" size="0.051 0.1555 0.072" group="1" />
+      <geom type="box" rgba="0 0.5 0 0.0" pos="0.0285 0 0.144" size="0.141 0.105 0.036" group="1" />
+      <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0.0055 0.125 0.124" size="0.012 0.098" quat="0.707107 0 0.707107 0" group="1" />
+      <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0.0055 -0.125 0.124" size="0.012 0.098" quat="0.707107 0 0.707107 0" group="1" />
+      <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0.1495 0.100 -0.095" size="0.010 0.012" group="1" />
+      <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0.1495 -0.100 -0.095" size="0.010 0.012" group="1" />
+      <geom type="cylinder" rgba="0 0.5 0 0.0" pos="-0.0925 0.100 -0.095" size="0.010 0.012" group="1" />
+      <geom type="cylinder" rgba="0 0.5 0 0.0" pos="-0.0925 -0.100 -0.095" size="0.010 0.012" group="1" />
+      <body name="L_HIP" pos="0 0.1 0">
+        <inertial pos="0.01294 -0.02861 0.00121" mass="2.02025" fullinertia="0.00226 0.00509 0.00481 -0.00101 0.00018 0.00003" />
+        <joint name="L_HR_JOINT" class="RMD_X8_90" pos="0 0 0" axis="1 0 0" range="-0.436 0.436" />
+        <geom type="mesh" rgba="0.286 0.565 0.667 1" mesh="L_HIP" class="visualgeom" />
+        <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0 -0.0375 0" quat="0.707107 0.707107 0 0" size="0.0645 0.0375" />
+        <body name="L_THIGH" pos="0 0.1195 0">
+          <inertial pos="-0.00523 -0.04759 -0.02798" mass="3.21815" fullinertia="0.02296 0.02060 0.00717 0.00052 -0.00171 0.00399" />
+          <joint name="L_HP_JOINT" class="RMD_X8_90" pos="0 0 0" axis="0 1 0" range="-0.959 2.356" />
+          <geom type="mesh" rgba="0.286 0.565 0.667 1" mesh="L_THIGH" class="visualgeom" />
+          <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0 -0.02825 0" size="0.0585 0.04575" quat="0.707107 0.707107 0 0" group="1" />
+          <geom type="box" rgba="0 0.5 0 0.0" pos="-0.0295 0 -0.165" size="0.029 0.0195 0.080" group="1" />
+          <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0 0.017 -0.3" size="0.0165 0.0025" quat="0.707107 0.707107 0 0" group="1" />
+          <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0 -0.017 -0.3" size="0.0165 0.0025" quat="0.707107 0.707107 0 0" group="1" />
+          <body name="L_CALF" pos="0 0 -0.3">
+            <inertial pos="0.00652 0.00010 -0.12271" mass="0.3577" fullinertia="0.00462 0.00466 0.00007 0 0.00020 0" />
+            <joint name="L_KN_JOINT" class="RMD_X8_90" pos="0 0 0" axis="0 1 0" range="-2.967 -0.436" />
+            <geom type="mesh" rgba="1.0 1.0 1.0 1" mesh="L_CALF" class="visualgeom" />
+            <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0 0 0" size="0.0165 0.0125" quat="0.707107 0.707107 0 0" group="1" />
+            <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0.0062 0 0.0354" size="0.012 0.0125" quat="0.707107 0.707107 0 0" group="1" />
+            <geom type="box" rgba="0 0.5 0 0.0" pos="0 0 -0.160" size="0.015 0.0125 0.100" group="1" />
+            <body name="L_TIP" pos="0 0 -0.3">
+              <inertial pos="-0.00255 0 -0.00440" mass="0.09008" fullinertia="0.000025 0.000043 0.000031 0 0.000005 0" />
+              <geom type="mesh" rgba="0.11764 0.11764 0.11764 1" mesh="L_TIP" class="foot" />
+              <geom type="sphere" rgba="0 0.5 0 0.0" size="0.032" group="1" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="R_HIP" pos="0 -0.1 0">
+        <inertial pos="0.01294 0.02861 0.00120" mass="2.02025" fullinertia="0.00227 0.00509 0.00480 0.00101 0.00018 0" />
+        <joint name="R_HR_JOINT" class="RMD_X8_90" pos="0 0 0" axis="1 0 0" range="-0.436 0.436" />
+        <geom type="mesh" rgba="0.286 0.565 0.667 1" mesh="R_HIP" class="visualgeom" />
+        <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0 0.0375 0" size="0.0645 0.0375" quat="0.707107 0.707107 0 0" group="1" />
+        <body name="R_THIGH" pos="0 -0.1195 0">
+          <inertial pos="-0.00523 0.04759 -0.02798" mass="3.21815" fullinertia="0.02296 0.02060 0.00718 -0.00052 -0.00171 -0.00399" />
+          <joint name="R_HP_JOINT" class="RMD_X8_90" pos="0 0 0" axis="0 1 0" range="-0.959 2.356" />
+          <geom type="mesh" rgba="0.286 0.565 0.667 1" mesh="R_THIGH" class="visualgeom" />
+          <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0 0.02825 0" size="0.0585 0.04575" quat="0.707107 0.707107 0 0" group="1" />
+          <geom type="box" rgba="0 0.5 0 0.0" pos="-0.0295 0 -0.165" size="0.029 0.0195 0.080" group="1" />
+          <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0 -0.017 -0.3" size="0.0165 0.0025" quat="0.707107 0.707107 0 0" group="1" />
+          <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0 0.017 -0.3" size="0.0165 0.0025" quat="0.707107 0.707107 0 0" group="1" />
+          <body name="R_CALF" pos="0 0 -0.3">
+            <inertial pos="0.00652 -0.00010 -0.12271" mass="0.3577" fullinertia="0.00462 0.00466 0.00007 0 0.00020 0" />
+            <joint name="R_KN_JOINT" class="RMD_X8_90" pos="0 0 0" axis="0 1 0" range="-2.967 -0.436" />
+            <geom type="mesh" rgba="1.0 1.0 1.0 1" mesh="R_CALF" class="visualgeom" />
+            <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0 0 0" size="0.0165 0.0125" quat="0.707107 0.707107 0 0" group="1" />
+            <geom type="cylinder" rgba="0 0.5 0 0.0" pos="0.0062 0 0.0354" size="0.012 0.0125" quat="0.707107 0.707107 0 0" group="1" />
+            <geom type="box" rgba="0 0.5 0 0.0" pos="0 0 -0.160" size="0.015 0.0125 0.100" group="1" />
+            <body name="R_TIP" pos="0 0 -0.3">
+              <inertial pos="-0.00255 0 -0.00440" mass="0.09008" fullinertia="0.000025 0.000043 0.000031 0 0.000005 0" />
+              <geom type="mesh" rgba="0.11764 0.11764 0.11764 1" mesh="R_TIP" class="foot" />
+              <geom type="sphere" rgba="0 0.5 0 0.0" size="0.032" group="1" />
+            </body>
+          </body>
+        </body>
+      </body>
+      <site name="body_world_Connect" pos="0 0 0" size="0.001" />
+    </body>
+    <site name="world_body_Connect" pos="0 0 0.57" size="0.001" />
+  </worldbody>
+  <equality>
+    <weld site1="world_body_Connect" site2="body_world_Connect" />
+  </equality>
+  <actuator>
+    <motor name="L_HR_motor" joint="L_HR_JOINT" ctrllimited="true" ctrlrange="-90 90" gear="1" />
+    <motor name="L_HP_motor" joint="L_HP_JOINT" ctrllimited="true" ctrlrange="-90 90" gear="1" />
+    <motor name="L_KN_motor" joint="L_KN_JOINT" ctrllimited="true" ctrlrange="-90 90" gear="1" />
+    <motor name="R_HR_motor" joint="R_HR_JOINT" ctrllimited="true" ctrlrange="-90 90" gear="1" />
+    <motor name="R_HP_motor" joint="R_HP_JOINT" ctrllimited="true" ctrlrange="-90 90" gear="1" />
+    <motor name="R_KN_motor" joint="R_KN_JOINT" ctrllimited="true" ctrlrange="-90 90" gear="1" />
+  </actuator>
+  <sensor>
+    <framequat name="orientation" objtype="site" objname="imu_site" />
+    <gyro name="angular_velocity" site="imu_site" />
+    <framequat name="imu_quat" objtype="site" objname="imu_site" />
+    <actuatorpos name="L_HR_p" actuator="L_HR_motor" />
+    <actuatorvel name="L_HR_v" actuator="L_HR_motor" />
+    <actuatorfrc name="L_HR_f" actuator="L_HR_motor" />
+    <actuatorpos name="L_HP_p" actuator="L_HP_motor" />
+    <actuatorvel name="L_HP_v" actuator="L_HP_motor" />
+    <actuatorfrc name="L_HP_f" actuator="L_HP_motor" />
+    <actuatorpos name="L_KN_p" actuator="L_KN_motor" />
+    <actuatorvel name="L_KN_v" actuator="L_KN_motor" />
+    <actuatorfrc name="L_KN_f" actuator="L_KN_motor" />
+    <actuatorpos name="R_HR_p" actuator="R_HR_motor" />
+    <actuatorvel name="R_HR_v" actuator="R_HR_motor" />
+    <actuatorfrc name="R_HR_f" actuator="R_HR_motor" />
+    <actuatorpos name="R_HP_p" actuator="R_HP_motor" />
+    <actuatorvel name="R_HP_v" actuator="R_HP_motor" />
+    <actuatorfrc name="R_HP_f" actuator="R_HP_motor" />
+    <actuatorpos name="R_KN_p" actuator="R_KN_motor" />
+    <actuatorvel name="R_KN_v" actuator="R_KN_motor" />
+    <actuatorfrc name="R_KN_f" actuator="R_KN_motor" />
+  </sensor>
+</mujoco>
