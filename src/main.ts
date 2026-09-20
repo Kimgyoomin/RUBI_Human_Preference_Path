@@ -1,4 +1,4 @@
-import '@fontsource-variable/noto-sans-kr';
+import { fetchHostedFiles } from './runtime/hosted-bundle.ts';
 import './style.css';
 import { Coverage,shuffledIndices } from './core/study.ts';
 import { makeScenario,length,turnAngles } from './core/scenario.ts';
@@ -95,8 +95,9 @@ button('generate').onclick=async()=>{
     await rebuild();viewer.robot.visible=false;
     for(const key of [aKey,bKey]) {
       const label=key===aKey?'A':'B';status(`경로 ${label}의 실제 정책 보행을 계산하고 있어요.`);
+      const computeStarted=performance.now();
       const run=await engine!.rollout(key,networks,abort.signal,(time)=>{el('progress-label').textContent=`경로 ${label} · 시뮬레이션 ${time.toFixed(1)}초 계산 중`;});
-      rollouts[key]=run;refresh();
+      rollouts[key]={...run,computeMs:performance.now()-computeStarted};refresh();
     }
     status(rollouts.direct!.completed&&rollouts.detour!.completed?'두 경로가 도착했습니다. 보행을 확인하세요.':'완주하지 못한 경로가 있습니다. 실행 기록을 확인하세요.');
     engine!.applyFrame(rollouts[aKey]!.frames[0]);viewer.updateRobot();viewer.robot.visible=true;current=aKey;
@@ -175,9 +176,8 @@ async function bootstrap() {
     if(study.responseApi){input('api-url').value=study.responseApi;await checkApi();}
     if(study.bundleBaseUrl){
       const base=new URL(study.bundleBaseUrl,new URL(import.meta.env.BASE_URL,location.href));
-      const response=await fetch(new URL('rubi.xml',base));if(!response.ok)throw new Error('배포된 rubi.xml을 불러올 수 없습니다.');const xml=await response.text();
-      const files=[new File([xml],'rubi.xml',{type:'application/xml'})];
-      for(const name of [...references(xml).files,'encoder.onnx','policy.onnx']){const r=await fetch(new URL(name,base));if(!r.ok)throw new Error(`배포 자산이 없습니다: ${name}`);files.push(new File([await r.arrayBuffer()],name.split('/').at(-1)!));}
+      status('배포 모델과 정책을 내려받고 있어요.');
+      const files=await fetchHostedFiles(base);
       await importFiles(files);
     }
     if(study.status==='released'){if(!study.bundleBaseUrl||!study.responseApi)throw new Error('공개 설문에는 모델 자산과 응답 API를 모두 설정해야 합니다.');button('studio-mode').hidden=true;button('survey-mode').textContent='설문 참여';setMode(true);}

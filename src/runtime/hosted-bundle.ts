@@ -37,6 +37,6 @@ export async function fetchHostedFiles(base: URL): Promise<File[]> {
     }
   }));
   const errors = results.filter(r => r.error).map(r => r.error);
-  if (errors.length) throw new Error(`배포 자산 연결 실패. web/public/rubi/에 파일을 추가한 뒤 다시 빌드하세요: ${errors.join(', ')}`);
+  if (errors.length) throw new Error(`배포 자산 연결 실패. public/models/rubi/에 파일을 추가한 뒤 다시 빌드하세요: ${errors.join(', ')}`);
   return results.map(r => r.file!);
 }

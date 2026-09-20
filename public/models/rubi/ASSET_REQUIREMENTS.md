@@ -1,8 +1,7 @@
-# Required hosted RUBI assets
+# Hosted RUBI assets
 
-Upload actual files, not a ZIP archive and not Git LFS pointer text.
+XML and bundle.json are already in this repository. Upload the terrain policy pair here and actual STL files to meshes/. Do not overwrite XML with a differently formatted copy without updating its fingerprint in bundle.json.
 
-- rubi.xml
 - encoder.onnx: float32 mlp_input [330] -> mlp_output [32]
 - policy.onnx: float32 mlp_input [65] -> mlp_output [6]
 - meshes/BODY.STL
@@ -15,4 +14,4 @@ Upload actual files, not a ZIP archive and not Git LFS pointer text.
 - meshes/R_CALF.STL
 - meshes/R_TIP.STL
 
-All files under public/ are downloadable by visitors when the website is published, independently of repository privacy. Only distribute approved assets.
+Upload actual files, not ZIP archives or Git LFS pointer text. Files served by the website are downloadable independently of source repository privacy.

@@ -9,7 +9,7 @@ import type { Bundle } from '../core/model.ts';
 let modulePromise:Promise<any>|undefined;
 export const loadEngine=()=>modulePromise??=(loadMujoco({locateFile:(p:string)=>p.endsWith('.wasm')?new URL(`${import.meta.env.BASE_URL}vendor/mujoco/mujoco.wasm`,window.location.href).href:p}));
 export type Frame={time:number;qpos:number[]};
-export type Rollout={id:string;route:RouteKey;scenarioId:string;frames:Frame[];duration:number;completed:boolean;reason:string;actualLength:number;plannedLength:number;maxError:number;inferences:number;simulator:string;profile:string};
+export type Rollout={computeMs?:number;id:string;route:RouteKey;scenarioId:string;frames:Frame[];duration:number;completed:boolean;reason:string;actualLength:number;plannedLength:number;maxError:number;inferences:number;simulator:string;profile:string};
 
 export class Physics {
   mj:any; model:any; data:any; vfs:any; scenario:Scenario;

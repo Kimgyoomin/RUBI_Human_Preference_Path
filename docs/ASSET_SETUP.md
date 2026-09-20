@@ -1,11 +1,12 @@
-# 모델 연결 및 이번 단계의 완료 기준
+# 모델 연결 및 검증 순서
 
-이 저장소는 루트에 package.json/src/public/api가 있는 독립 앱입니다. 이전 저장소의 web/ 경로를 이 저장소에 다시 만들 필요가 없습니다.
+이 저장소는 루트에 package.json/src/public/api가 있는 독립 앱입니다. 이전 저장소의 web/ 경로를 다시 만들지 않습니다.
 
-## 파일 배치
+## 업로드
+
+public/models/rubi/rubi.xml과 bundle.json은 저장소에 있습니다. XML을 수정하면 bundle.json의 XML SHA256도 검토 후 갱신해야 합니다.
 
 ```
-public/models/rubi/rubi.xml
 public/models/rubi/encoder.onnx
 public/models/rubi/policy.onnx
 public/models/rubi/meshes/BODY.STL
@@ -19,29 +20,26 @@ public/models/rubi/meshes/R_CALF.STL
 public/models/rubi/meshes/R_TIP.STL
 ```
 
-제공한 asset ZIP은 압축 해제 후 저장소 루트에 public 폴더를 합칩니다. GitHub Upload files에서도 같은 경로를 지키세요. ZIP 하나를 저장소에 올리는 것으로는 작동하지 않습니다.
+ONNX는 첨부된 terrain pair 원본을 사용합니다. GitHub에서는 압축을 풀고 실제 파일을 해당 폴더에 올리세요. STL 9개는 현재 대화 첨부에 없으므로 추가해야 합니다. 공개된 public/ 파일은 참가자가 다운로드할 수 있습니다.
 
-ONNX 두 개는 사용자가 첨부한 terrain pair입니다. SHA256과 실제 tensor 정보는 MODEL_CONTRACT.md에 있습니다. XML의 배포용 복사본은 원본에서 world include/주석만 제거하며 로봇의 남은 물리 속성을 유지합니다. STL은 현재 첨부되지 않아 제공된 ZIP에도 없습니다.
-
-## 검증
+## 실행
 
 ```bash
-python3 tools/check_assets.py --strict
+python3 tools/check_assets.py --require-complete
+python3 tools/inspect_onnx.py public/models/rubi/encoder.onnx public/models/rubi/policy.onnx
 npm ci
 npm test
 npm run dev
 ```
 
-check_assets는 shape/hash/기초 XML/누락을 검사합니다. 물리 엔진에서 모델을 컴파일하거나 실제 보행 성공을 판정하는 명령은 아닙니다. draft에서는 누락 자산이 있어도 CI가 UI를 빌드할 수 있지만 released에서는 차단합니다.
+check_assets는 hash와 기초 XML 및 누락을 검사합니다. inspect_onnx는 protobuf metadata를 읽고 추론은 하지 않습니다. 실제 파일이 준비되면 0 cm 평지에서 두 경로를 실행한 뒤 낮은 단차로 높여야 합니다. UI 높이 범위는 검증된 통과 능력을 뜻하지 않습니다.
 
-우선 0 cm 평지에서 두 경로를 실행한 후 낮은 단차로 올립니다. UI의 높이 범위는 검증된 로봇 능력을 뜻하지 않습니다.
+## 배포
 
-## 배포와 데이터
+Settings → Pages → GitHub Actions를 설정하고 Actions → RUBI WASM Web에서 deploy를 실행합니다. Private 저장소의 Pages 사용 가능 요금제를 확인하세요. build 성공, deploy 성공, 실제 RUBI 완주, 중앙 응답 저장은 각각 다른 검증입니다.
 
-public/study.json의 bundleBaseUrl=models/rubi/로 자동 모델 로딩을 켰습니다. 누락 파일이 있으면 실행되지 않으며 로컬 폴더 선택도 사용할 수 있습니다.
+응답 API는 api/server.mjs에 있습니다. 외부 서버에 이미 배포됐다고 가정하지 않습니다. draft의 로컬 저장은 연구자에게 자동 전송되는 것이 아닙니다.
 
-GitHub Pages의 Private 저장소 지원 요금제를 확인한 뒤 Settings/Pages에서 GitHub Actions를 선택하세요. Actions의 RUBI WASM Web에서 deploy를 실행합니다. 빌드 성공/공개 배포/실제 RUBI 완주/중앙 응답 저장은 각각 별도로 확인해야 합니다.
+tools/browser-smoke.mjs는 production 하위경로, 데스크톱/모바일 화면, 3D canvas, 미시청 선택 차단, WASM 배포파일을 확인합니다. 실제 RUBI 폐루프 보행 검증은 아닙니다.
 
-응답 API는 api/server.mjs에 있으며 아직 외부 서버에 배포됐다고 가정하지 않습니다. draft의 로컬 응답 저장은 연구자에게 자동 전송되는 것이 아닙니다.
-
-tools/browser-smoke.mjs는 production 하위경로, 데스크톱/모바일 레이아웃, 3D canvas, 미시청 응답 차단, WASM 파일 배포를 확인합니다. 이것은 실제 RUBI ONNX의 폐루프 보행 테스트가 아닙니다.
+현재 생성 경로는 플랫폼의 상승과 하강을 포함하고 우회거리와 회전 특성이 함께 변합니다. 본 조사 전에 CoT 구간 정렬과 변인통제를 점검하세요.
