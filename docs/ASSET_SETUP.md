@@ -20,7 +20,7 @@ public/models/rubi/meshes/R_CALF.STL
 public/models/rubi/meshes/R_TIP.STL
 ```
 
-ONNX는 첨부된 terrain pair 원본을 사용합니다. GitHub에서는 압축을 풀고 실제 파일을 해당 폴더에 올리세요. STL 9개는 현재 대화 첨부에 없으므로 추가해야 합니다. 공개된 public/ 파일은 참가자가 다운로드할 수 있습니다.
+ONNX는 첨부된 terrain pair 원본을 사용합니다. GitHub에서는 ZIP을 압축 해제하고 실제 파일을 해당 폴더에 올리세요. STL 9개는 현재 대화 첨부에 없으므로 추가해야 합니다. 공개된 public/ 파일은 참가자가 다운로드할 수 있습니다.
 
 ## 실행
 
@@ -40,6 +40,6 @@ Settings → Pages → GitHub Actions를 설정하고 Actions → RUBI WASM Web�
 
 응답 API는 api/server.mjs에 있습니다. 외부 서버에 이미 배포됐다고 가정하지 않습니다. draft의 로컬 저장은 연구자에게 자동 전송되는 것이 아닙니다.
 
-tools/browser-smoke.mjs는 production 하위경로, 데스크톱/모바일 화면, 3D canvas, 미시청 선택 차단, WASM 배포파일을 확인합니다. 실제 RUBI 폐루프 보행 검증은 아닙니다.
+tools/browser-smoke.mjs는 Chromium의 화면 표시와 최소 MuJoCo 물리 step, 합성 ONNX 네트워크의 추론을 검사합니다. 합성 테스트 가중치는 RUBI 원본 policy가 아니므로 이 결과를 실제 RUBI 폐루프 보행 검증으로 해석하면 안 됩니다.
 
 현재 생성 경로는 플랫폼의 상승과 하강을 포함하고 우회거리와 회전 특성이 함께 변합니다. 본 조사 전에 CoT 구간 정렬과 변인통제를 점검하세요.

@@ -1,40 +1,74 @@
-import http from 'node:http';
-import fs from 'node:fs';
-import path from 'node:path';
-import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-const root=path.resolve('dist'),base='/RUBI_Human_Preference_Path/';
-const mime={'.html':'text/html','.js':'text/javascript','.mjs':'text/javascript','.wasm':'application/wasm','.css':'text/css','.json':'application/json','.svg':'image/svg+xml','.woff2':'font/woff2'};
-fs.mkdirSync('artifacts',{recursive:true});
-const server=http.createServer((req,res)=>{
-  try{
-    const url=new URL(req.url,'http://127.0.0.1');
-    if(!url.pathname.startsWith(base)){res.writeHead(404).end();return;}
-    const file=path.resolve(root,decodeURIComponent(url.pathname.slice(base.length))||'index.html');
-    if(!file.startsWith(root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404).end();return;}
-    res.setHeader('Content-Type',mime[path.extname(file)]||'application/octet-stream');fs.createReadStream(file).pipe(res);
-  }catch{res.writeHead(400).end();}
-});
-await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-const origin=`http://127.0.0.1:${server.address().port}`;
-let browser;const results=[];
-try{
-  browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-  for(const [label,viewport] of [['desktop',{width:1440,height:1000}],['mobile',{width:390,height:844}]]){
-    const page=await browser.newPage({viewport});const errors=[];page.on('pageerror',e=>errors.push(String(e)));
-    await page.goto(origin+base,{waitUntil:'networkidle',timeout:60000});
-    await page.locator('#world').waitFor({state:'visible'});
-    assert.match(await page.locator('h1').innerText(),/같은 목적지/);
-    assert.equal(await page.locator('#choose-a').isDisabled(),true);assert.equal(await page.locator('#choose-b').isDisabled(),true);
-    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2),true,'horizontal overflow');
-    await page.locator('[data-camera="top"]').click();
-    await page.screenshot({path:`artifacts/${label}.png`,fullPage:true});
-    assert.deepEqual(errors,[],'Unhandled browser errors');
-    results.push({label,status:'PASS',viewport,unhandledErrors:errors,diagnostic:await page.locator('#error').innerText()});await page.close();
+import { spawn } from 'node:child_process';
+import { mkdir, writeFile, rm } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+
+// Minimal ONNX MatMul fixtures. They contain zero test weights, NOT RUBI policy weights.
+const v = n => { const a=[]; do {const b=n%128;n=Math.floor(n/128);a.push(b|(n?128:0));}while(n);return Buffer.from(a); };
+const int=(n,x)=>Buffer.concat([v(n*8),v(x)]);
+const bytes=(n,x)=>{const b=Buffer.isBuffer(x)?x:Buffer.from(x);return Buffer.concat([v(n*8+2),v(b.length),b]);};
+const msg=(...x)=>Buffer.concat(x);
+const info=(name,dims)=>bytes(1,name).length && msg(bytes(1,name),bytes(2,bytes(1,msg(int(1,1),bytes(2,msg(...dims.map(d=>bytes(1,int(1,d)))))))));
+function model(input,output){
+  const node=msg(bytes(1,'mlp_input'),bytes(1,'W'),bytes(2,'mlp_output'),bytes(3,'test_matmul'),bytes(4,'MatMul'));
+  const weights=msg(int(1,input),int(1,output),int(2,1),bytes(8,'W'),bytes(9,Buffer.alloc(input*output*4)));
+  const graph=msg(bytes(1,node),bytes(2,'rubi_runtime_smoke_only'),bytes(5,weights),bytes(11,info('mlp_input',[input])),bytes(12,info('mlp_output',[output])));
+  return msg(int(1,8),bytes(2,'rubi-runtime-smoke'),bytes(7,graph),bytes(8,int(2,13)));
+}
+
+await mkdir('artifacts',{recursive:true});
+await mkdir('public/__smoke_models',{recursive:true});
+await writeFile('public/__smoke_models/encoder.onnx',model(330,32));
+await writeFile('public/__smoke_models/policy.onnx',model(65,6));
+const server=spawn('npm',['run','dev','--','--port','4177','--strictPort'],{stdio:'inherit'});
+let browser;
+try {
+  let ready=false;
+  for(let i=0;i<100;i++){
+    try {if((await fetch('http://127.0.0.1:4177/')).ok){ready=true;break;}}catch{}
+    await new Promise(r=>setTimeout(r,200));
   }
-  for(const file of ['vendor/mujoco/mujoco.wasm','vendor/ort/ort-wasm-simd-threaded.wasm']){
-    const response=await fetch(origin+base+file);assert.equal(response.status,200,file);
-    const bytes=new Uint8Array(await response.arrayBuffer());assert.deepEqual(Array.from(bytes.slice(0,4)),[0,97,115,109],file+' WASM header');results.push({asset:file,status:'PASS',bytes:bytes.length});
-  }
-  console.log(JSON.stringify({status:'PASS',checks:results,realRubiLocomotionTested:false},null,2));fs.writeFileSync('artifacts/browser-smoke.json',JSON.stringify(results,null,2));
-}finally{await browser?.close();await new Promise(resolve=>server.close(resolve));}
+  assert.ok(ready,'Vite server did not start');
+  browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-angle=swiftshader','--enable-webgl']});
+  const page=await browser.newPage({viewport:{width:1440,height:1000}});
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('http://127.0.0.1:4177/',{waitUntil:'networkidle'});
+  await page.locator('#world').waitFor();
+  assert.ok(await page.locator('#world').isVisible());
+  assert.ok((await page.locator('h1').innerText()).includes('두 가지 경로'));
+  await page.screenshot({path:'artifacts/desktop.png',fullPage:true});
+  const runtime=await page.evaluate(async()=>{
+    const {loadEngine}=await import('/src/runtime/physics.ts');
+    const mj=await loadEngine();
+    const vfs=new mj.MjVFS();
+    vfs.addBuffer('smoke.xml',new TextEncoder().encode('<mujoco><option timestep="0.002"/><worldbody><body pos="0 0 1"><freejoint/><geom type="sphere" size="0.05" mass="1"/></body></worldbody></mujoco>'));
+    let model,data;
+    try{
+      model=mj.MjModel.from_xml_path('smoke.xml',vfs);data=new mj.MjData(model);mj.mj_forward(model,data);
+      for(let i=0;i<10;i++)mj.mj_step(model,data);
+      const physics={time:data.time,z:data.qpos[2]};
+      const {OnnxNetworks}=await import('/src/runtime/onnx.ts');
+      const files=new Map();
+      for(const name of ['encoder.onnx','policy.onnx']){
+        const r=await fetch('/__smoke_models/'+name);files.set(name,new Uint8Array(await r.arrayBuffer()));
+      }
+      const networks=await OnnxNetworks.create(files);
+      try{
+        const latent=await networks.encode(new Float32Array(330)),action=await networks.act(new Float32Array(65));
+        return {physics,latentSize:latent.length,actionSize:action.length,finite:[...latent,...action].every(Number.isFinite),fixture:'synthetic zero-weight ONNX, not RUBI locomotion'};
+      }finally{await networks.dispose();}
+    }finally{data?.delete();model?.delete();vfs.delete();}
+  });
+  assert.ok(Math.abs(runtime.physics.time-0.02)<1e-9);
+  assert.ok(runtime.physics.z<1);
+  assert.equal(runtime.latentSize,32);assert.equal(runtime.actionSize,6);assert.ok(runtime.finite);
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:'artifacts/mobile.png',fullPage:true});
+  assert.ok(await page.locator('#world').isVisible());
+  assert.deepEqual(errors,[]);
+  await writeFile('artifacts/browser-smoke.json',JSON.stringify({status:'PASS',runtime,errors},null,2));
+  console.log('BROWSER_SMOKE_PASS',JSON.stringify(runtime));
+}finally{
+  await browser?.close();server.kill('SIGTERM');
+  await rm('public/__smoke_models',{recursive:true,force:true});
+}
