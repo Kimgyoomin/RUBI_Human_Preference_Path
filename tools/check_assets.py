@@ -15,7 +15,7 @@ def main():
     parser.add_argument('--require-complete', action='store_true')
     parser.add_argument('--record-mesh-hashes', action='store_true', help='Explicitly record mesh fingerprints after reviewing assets')
     args = parser.parse_args()
-    base = ROOT / 'web/public/rubi'
+    base = ROOT / 'public/models/rubi'
     manifest_path = base / 'bundle.json'
     manifest = json.loads(manifest_path.read_text())
     if manifest.get('schemaVersion') != 1 or manifest.get('profile') != 'gazebo-terrain-330-32-65-6':
@@ -56,7 +56,7 @@ def main():
             ref = str(Path(meshdir) / mesh.get('file', ''))
             if ref not in seen:
                 errors.append(f'XML mesh is absent from manifest: {ref}')
-    study_path = ROOT / 'web/public/study.json'
+    study_path = ROOT / 'public/study.json'
     released = study_path.exists() and json.loads(study_path.read_text()).get('status') == 'released'
     for name in missing:
         print(f'MISSING {name}')
