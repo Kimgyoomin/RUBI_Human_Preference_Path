@@ -1,12 +1,34 @@
 {
-  "id": "rubi-hpp-cosine-v2",
+  "id": "rubi-hpp-collector-v3",
   "status": "draft",
+  "responseTransport": "apps-script",
   "responseApi": "",
   "bundleBaseUrl": "./models/rubi-web/",
+  "protocolVersion": "collector-v3",
+  "profileSchemaVersion": "post-profile-v1",
+  "groupingRuleVersion": "cohort-v1",
+  "tutorialVersion": "tutorial-pending",
+  "consentVersion": "consent-v1",
   "scenarios": [
-    {"height": 0.05, "detour": 0.4, "speed": 0.3},
-    {"height": 0.05, "detour": 0.8, "speed": 0.3},
-    {"height": 0.05, "detour": 1.2, "speed": 0.3},
-    {"height": 0.05, "detour": 1.6, "speed": 0.3}
+    {
+      "height": 0.05,
+      "detour": 0.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 0.8,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 1.2,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 1.6,
+      "speed": 0.5
+    }
   ]
 }
