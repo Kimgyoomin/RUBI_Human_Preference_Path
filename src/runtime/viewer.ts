@@ -1,5 +1,6 @@
 import * as T from 'three';
 import { meshGeometry } from './mesh-geometry.ts';
+import { sampleRoute } from '../core/scenario.ts';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { Scenario, RouteKey } from '../core/scenario.ts';
 import type { Physics } from './physics.ts';
@@ -46,10 +47,12 @@ export class Viewer {
     for(const key of ['direct','detour'] as const) {
       const points=s.routes[key].map(p=>new T.Vector3(p[0],p[1],0.02));
       const line=new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color:key===this.aKey?0x087d79:0xcc6640,transparent:true,opacity:!selected||selected===key?1:0.25}));this.world.add(line);
-      // Repeated markers keep routes readable when WebGL ignores lineWidth.
-      for(let i=0;i<points.length-1;i++) {const a=points[i],b=points[i+1],n=Math.ceil(a.distanceTo(b)/0.12);for(let j=0;j<n;j++){
-        const marker=new T.Mesh(new T.SphereGeometry(0.026,8,6),new T.MeshBasicMaterial({color:key===this.aKey?0x087d79:0xcc6640,transparent:true,opacity:!selected||selected===key?0.85:0.2}));marker.position.lerpVectors(a,b,j/n);this.world.add(marker);
-      }}
+      // Dense curve control points must not multiply the number of draw objects.
+      // Keep the same 0.12 m marker spacing on both the direct and curved routes.
+      for(const p of sampleRoute(s.routes[key],0.12)) {
+        const marker=new T.Mesh(new T.SphereGeometry(0.026,8,6),new T.MeshBasicMaterial({color:key===this.aKey?0x087d79:0xcc6640,transparent:true,opacity:!selected||selected===key?0.85:0.2}));
+        marker.position.set(p[0],p[1],0.02);this.world.add(marker);
+      }
     }
     for(const [x,color] of [[0,0x087d79],[6,0x254554]] as const) {const marker=new T.Mesh(new T.CylinderGeometry(0.13,0.13,0.009,32),new T.MeshStandardMaterial({color}));marker.rotation.x=Math.PI/2;marker.position.set(x,0,0.009);this.world.add(marker);}
     this.label('START',0,-0.5,0.12);this.label('GOAL',6,-0.5,0.12);this.label(`${Math.round(s.height*100)} cm`,3,-0.55,0.28);

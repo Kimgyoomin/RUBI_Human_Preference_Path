@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Coverage,shuffledIndices} from '../src/core/study.ts';
-import {makeScenario,length,Follower} from '../src/core/scenario.ts';
+import {makeScenario,length,Follower,platformClearance} from '../src/core/scenario.ts';
 import {TerrainController} from '../src/core/terrain-controller.ts';
 
 test('displayed detour equals the geometric extra distance across all pilot settings',()=>{
   for(const h of [0,.05,.09,.12])for(const extra of [.4,.8,1.2,1.6,2.4]){
     const s=makeScenario(h,extra);
     assert(Math.abs(length(s.routes.detour)-length(s.routes.direct)-extra)<1e-12);
-    assert(s.routes.detour[1][1]-s.width/2>=.4);
+    assert(platformClearance(s.routes.detour,s.width,s.depth)>=.4);
   }
   assert.throws(()=>makeScenario(.2));assert.throws(()=>makeScenario(.05,NaN));
 });

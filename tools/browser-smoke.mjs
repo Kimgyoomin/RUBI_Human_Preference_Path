@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
-import { mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 
 // Synthetic engine fixtures are separate from the real RUBI locomotion check below.
@@ -63,8 +63,7 @@ try {
   });
   assert.ok(Math.abs(runtime.physics.time-0.02)<1e-9);assert.ok(runtime.physics.z<1);
   assert.equal(runtime.latentSize,32);assert.equal(runtime.actionSize,6);assert.ok(runtime.finite);
-  // Exercise the real user path, including scene rebuild, startup weld release,
-  // thousands of actual encoder/policy evaluations, both routes and cache reuse.
+  // Real ONNX + real RUBI model, flat direct and cosine detour.
   await page.locator('#height').evaluate(e=>{e.value='0';e.dispatchEvent(new Event('input',{bubbles:true}));});
   await page.locator('#generate').click();
   await page.waitForFunction(()=>!document.querySelector('#generate')?.disabled,null,{timeout:240000});
@@ -77,11 +76,40 @@ try {
   await page.waitForFunction(()=>!document.querySelector('#generate')?.disabled,null,{timeout:60000});
   const cached=JSON.parse(await page.locator('#performance-metrics').textContent());
   assert.ok(cached.direct.cacheHit&&cached.detour.cacheHit,'same-condition successful rollouts were not reused');
+
+  // Real bypasses around a nonzero platform at both limits of the detour slider.
+  // Direct traversal at 5 cm is reported but is not the acceptance criterion here.
+  const smoothBypasses=[];
+  for(const extra of [0.4,2.4]) {
+    await page.locator('#height').evaluate(e=>{e.value='5';e.dispatchEvent(new Event('input',{bubbles:true}));});
+    await page.locator('#detour').evaluate((e,value)=>{e.value=String(value);e.dispatchEvent(new Event('input',{bubbles:true}));},extra);
+    await page.locator('#generate').click();
+    await page.waitForFunction(()=>!document.querySelector('#generate')?.disabled,null,{timeout:240000});
+    assert.ok(await page.locator('#error').isHidden(),await page.locator('#error').textContent());
+    const metrics=JSON.parse(await page.locator('#performance-metrics').textContent());
+    assert.ok(metrics.detour.completed,`real cosine detour +${extra} m did not arrive: ${metrics.detour.reason}`);
+    assert.equal(metrics.detour.cacheHit,false,'changed detour must be recomputed');
+    const downloading=page.waitForEvent('download');
+    await page.locator('#export-runs').click();
+    const download=await downloading,path=`artifacts/smooth-h5-d${extra}.json`;
+    await download.saveAs(path);
+    const exported=JSON.parse(await readFile(path,'utf8'));
+    assert.equal(exported.scenario.geometry.version,'cosine-bypass-v2');
+    assert.equal(exported.scenario.routes.detour.length,481);
+    assert.ok(Math.abs(exported.rollouts.detour.plannedLength-(6+extra))<1e-9);
+    assert.ok(exported.scenario.geometry.minCenterlineClearanceM>=.4);
+    const run=exported.rollouts.detour;
+    smoothBypasses.push({height:.05,detour:extra,completed:run.completed,reason:run.reason,plannedLength:run.plannedLength,actualLength:run.actualLength,maxError:run.maxError,duration:run.duration,inferences:run.inferences,computeMs:run.computeMs,geometry:exported.scenario.geometry,direct:metrics.direct});
+    await page.locator('#preview-b').click();
+    await page.waitForTimeout(1500);
+    await page.locator('#play').click();
+    await page.screenshot({path:`artifacts/smooth-h5-d${extra}.png`,fullPage:true});
+  }
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:'artifacts/mobile.png',fullPage:true});
   assert.ok(await page.locator('#world').isVisible());assert.deepEqual(errors,[]);
-  await writeFile('artifacts/browser-smoke.json',JSON.stringify({status:'PASS',runtime,actualFlat:actual,cachedRepeat:cached,errors},null,2));
-  console.log('BROWSER_SMOKE_PASS',JSON.stringify({runtime,actualFlat:actual,cachedRepeat:cached}));
+  await writeFile('artifacts/browser-smoke.json',JSON.stringify({status:'PASS',runtime,actualFlat:actual,cachedRepeat:cached,smoothBypasses,errors},null,2));
+  console.log('BROWSER_SMOKE_PASS',JSON.stringify({runtime,actualFlat:actual,cachedRepeat:cached,smoothBypasses}));
 }catch(e){
   await page?.screenshot({path:'artifacts/browser-failure.png',fullPage:true}).catch(()=>{});
   throw e;

@@ -1,9 +1,9 @@
 import type { Scenario, RouteKey } from './scenario.ts';
 import type { Rollout } from '../runtime/physics.ts';
 
-export const ROLLOUT_CONTRACT = 'rubi-mj3.13-ort1.30-terrain-follower-v1';
+export const ROLLOUT_CONTRACT = 'rubi-mj3.13-ort1.30-terrain-follower-v2';
 export function rolloutKey(hashes: Record<string, string>, profile: unknown, s: Scenario, route: RouteKey): string {
-  return JSON.stringify({contract: ROLLOUT_CONTRACT, hashes: Object.keys(hashes).sort().map(k => [k, hashes[k]]), profile,
+  return JSON.stringify({contract: ROLLOUT_CONTRACT, geometryVersion: s.geometry?.version ?? 'legacy-polyline-v1', hashes: Object.keys(hashes).sort().map(k => [k, hashes[k]]), profile,
     world: {height: s.height, width: s.width, depth: s.depth}, speed: s.speed, route, points: s.routes[route]});
 }
 
