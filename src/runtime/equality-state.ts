@@ -1,14 +1,15 @@
 /** @mujoco/mujoco 3.13.0 has an unregistered memory_view<bool> for eq_active.
  * Use the official get/set state API, preserving every other equality flag.
  * No pointer offsets, model edits, or changes to the release timing are used.
+ * DoubleBuffer(int) and GetView() match wasm/codegen/generated/bindings.cc.
  */
 export function equalityState(mj: any, model: any, data: any): number[] {
   const spec = mj.mjtState.mjSTATE_EQ_ACTIVE.value;
   const count = mj.mj_stateSize(model, spec);
-  const buffer = new mj.DoubleBuffer(new Array(count).fill(0));
+  const buffer = new mj.DoubleBuffer(count);
   try {
     mj.mj_getState(model, data, buffer, spec);
-    return Array.from(buffer.getView() as Float64Array);
+    return Array.from(buffer.GetView() as Float64Array);
   } finally { buffer.delete(); }
 }
 
