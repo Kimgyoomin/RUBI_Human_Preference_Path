@@ -67,7 +67,7 @@ input('api-url').value=api;
 function refresh() {
   const ready=Boolean(bundle&&networks&&engine);button('generate').disabled=!ready||busy||(participant&&answered);
   button('select-folder').disabled=busy;button('select-files').disabled=busy;el<HTMLFieldSetElement>('settings').disabled=busy;
-  button('studio-mode').disabled=busy;button('survey-mode').disabled=busy;
+  button('studio-mode').disabled=busy;button('survey-mode').disabled=busy;button('submit-profile').disabled=busy;
   for(const [label,key] of [['a',aKey],['b',bKey]] as const) {
     el(`length-${label}`).textContent=length(scenario.routes[key]).toFixed(1);
     el(`desc-${label}`).textContent=key==='direct'?`${Math.round(scenario.height*100)} cm 플랫폼 통과`:'평지로 우회';
@@ -157,7 +157,10 @@ button('generate').onclick=async()=>{
         rollouts[key]={...run,computeMs:performance.now()-computeStarted,cacheHit:false};
         rolloutCache.set(cacheKey,rollouts[key]!);
       }
-      performanceMetrics[key]={computeMs:rollouts[key]!.computeMs,simulationSeconds:rollouts[key]!.duration,cacheHit:rollouts[key]!.cacheHit,completed:rollouts[key]!.completed,reason:rollouts[key]!.reason};
+      performanceMetrics[key]={computeMs:rollouts[key]!.computeMs,simulationSeconds:rollouts[key]!.duration,movingDurationS:rollouts[key]!.movingDurationS,
+        nominalSpeedMps:scenario.speed,meanFollowerVxMps:rollouts[key]!.meanFollowerVxMps,meanPolicyVxCommand:rollouts[key]!.meanPolicyVxCommand,
+        achievedMeanXyMps:rollouts[key]!.achievedMeanXyMps,distanceAtArrivalM:rollouts[key]!.distanceAtArrivalM,
+        cacheHit:rollouts[key]!.cacheHit,completed:rollouts[key]!.completed,reason:rollouts[key]!.reason};
       performanceMetrics.cacheEntries=rolloutCache.size;showPerformance();refresh();
     }
     status(rollouts.direct!.completed&&rollouts.detour!.completed?'두 경로가 도착했습니다. 보행을 확인하세요.':'완주하지 못한 경로가 있습니다. 실행 기록을 확인하세요.');
