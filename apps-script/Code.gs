@@ -162,6 +162,6 @@ function finiteRange_(v,lo,hi){return isFiniteNumber_(v)&&v>=lo&&v<=hi;}
 function sha256_(text){return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,text,Utilities.Charset.UTF_8).map(b=>(b<0?b+256:b).toString(16).padStart(2,'0')).join('');}
 function reply_(payload){
   const json=JSON.stringify(payload).replace(/<\//g,'<\\/');
-  return HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>parent.postMessage('+json+',"*");<\/script>')
+  return HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><script>top.postMessage('+json+',"*");<\/script>')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
