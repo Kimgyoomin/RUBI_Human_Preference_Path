@@ -1,4 +1,5 @@
 import * as T from 'three';
+import { meshGeometry } from './mesh-geometry.ts';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { Scenario, RouteKey } from '../core/scenario.ts';
 import type { Physics } from './physics.ts';
@@ -11,8 +12,8 @@ export class Viewer {
   onFrame:(time:number)=>void=()=>{};
   constructor(canvas:HTMLCanvasElement) {
     this.canvas=canvas;this.renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false});
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.setClearColor('#e7edf0');
-    this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFShadowMap;
+    this.renderer.setPixelRatio(1);this.renderer.setClearColor('#e7edf0');
+    this.renderer.shadowMap.enabled=false;this.renderer.shadowMap.type=T.PCFShadowMap;
     this.camera.up.set(0,0,1);this.camera.position.set(7,-7,5.5);
     this.controls=new OrbitControls(this.camera,canvas);this.controls.target.set(3,0,0.15);
     this.controls.enableDamping=true;this.controls.minDistance=0.6;this.controls.maxDistance=24;
@@ -56,14 +57,13 @@ export class Viewer {
   setCamera(preset:'overview'|'step'|'top') {if(preset==='overview'){this.camera.position.set(7,-7,5.5);this.controls.target.set(3,0,0.15);}if(preset==='step'){this.camera.position.set(4.3,-2.4,1.6);this.controls.target.set(3,0,0.2);}if(preset==='top'){this.camera.position.set(3,-0.01,9);this.controls.target.set(3,0,0);}this.controls.update();}
   attach(engine:Physics) {
     this.clear(this.robot);this.robotMeshes=[];this.engine=engine;
-    const m=engine.model;
+    const m=engine.model,meshCache=new Map<number,T.BufferGeometry>();
     for(let id=0;id<m.ngeom;id++) {
       if(m.geom_bodyid[id]===0 || m.geom_rgba[id*4+3]<0.01) continue;
       const size=Array.from(m.geom_size.slice(id*3,id*3+3)) as number[],type=m.geom_type[id];let geometry:T.BufferGeometry;
       if(type===7) {
-        const meshId=m.geom_dataid[id],va=m.mesh_vertadr[meshId],vn=m.mesh_vertnum[meshId],fa=m.mesh_faceadr[meshId],fn=m.mesh_facenum[meshId];
-        geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.BufferAttribute(new Float32Array(m.mesh_vert.slice(3*va,3*(va+vn))),3));
-        geometry.setIndex(new T.BufferAttribute(new Uint32Array(m.mesh_face.slice(3*fa,3*(fa+fn))),1));geometry.computeVertexNormals();
+        const meshId=m.geom_dataid[id];
+        geometry=meshCache.get(meshId) ?? meshGeometry(m,meshId);meshCache.set(meshId,geometry);
       } else if(type===6) geometry=new T.BoxGeometry(size[0]*2,size[1]*2,size[2]*2);
       else if(type===5) {geometry=new T.CylinderGeometry(size[0],size[0],size[1]*2,24);geometry.rotateX(Math.PI/2);}
       else if(type===3) {geometry=new T.CapsuleGeometry(size[0],size[1]*2,6,16);geometry.rotateX(Math.PI/2);}

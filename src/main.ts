@@ -1,4 +1,5 @@
-import { fetchHostedFiles } from './runtime/hosted-bundle.ts';
+import { fetchHostedBundle } from './runtime/bundle-loader.ts';
+import { RolloutCache, rolloutKey } from './core/rollout-cache.ts';
 import './style.css';
 import { Coverage,shuffledIndices } from './core/study.ts';
 import { makeScenario,length,turnAngles } from './core/scenario.ts';
@@ -20,7 +21,7 @@ document.querySelector('#app')!.innerHTML=`
 <section class="surface question"><h2>RUBI에게 어느 경로를 지정하시겠습니까?</h2><p id="choice-hint">두 경로의 보행을 끝까지 확인한 뒤 선택할 수 있어요.</p><label class="consent"><input type="checkbox" id="consent"> 시뮬레이션 경로 선호 조사임을 이해했고, 익명 응답 저장에 동의합니다.</label><div class="choices"><button id="choose-a" disabled>경로 A 선택</button><button id="choose-b" disabled>경로 B 선택</button><button id="choose-unsure" disabled>판단 어려움</button></div><div class="saved" id="save-status" aria-live="polite">현재 연구자 준비 단계입니다. 응답은 아직 수집되지 않습니다.</div><button id="retry-save" class="secondary" hidden>확정한 응답 다시 저장</button><button id="next-trial" class="secondary" hidden>다음 장면</button></section><section class="completion" id="completion" hidden><h2>모든 경로를 확인했어요.</h2><p id="complete-text"></p></section></section>
 <aside class="sidebar"><section class="surface panel research-only"><h2><span class="number">01</span> RUBI 모델 연결</h2><div class="upload"><strong>XML · ONNX · meshes</strong><button id="select-folder">폴더 선택</button> <button id="select-files">파일 선택</button><input type="file" id="folder-input" webkitdirectory multiple hidden><input type="file" id="file-input" multiple accept=".xml,.onnx,.stl,.STL,.obj,.png" hidden></div><div class="file-status" id="file-status">이 기기에서만 불러옵니다. 파일은 서버로 전송하지 않아요.</div><details><summary>필요한 파일과 정책 설정</summary><ul><li>rubi.xml</li><li>encoder.onnx · policy.onnx</li><li>XML이 참조하는 STL 9개</li></ul><p>Gazebo terrain: 330 → 32 / 65 → 6<br>물리 500 Hz · 정책 100 Hz</p><p>world include는 설문 장면으로 교체하고 로봇의 접촉 형상은 유지합니다.</p></details></section>
 <section class="surface panel research-only"><h2><span class="number">02</span> 장면 설정</h2><fieldset id="settings"><div class="field"><label for="height">단차 높이 <output id="height-out">5 cm</output></label><input id="height" type="range" min="0" max="12" step="1" value="5"><small>조사 높이는 실제 보행 검증 후 확정하세요.</small></div><div class="field"><label for="detour">추가 우회거리 <output id="detour-out">0.8 m</output></label><input id="detour" type="range" min="0.4" max="2.4" step="0.2" value="0.8"></div><div class="field"><label for="speed">전진 속도 명령 <output id="speed-out">0.30 m/s</output></label><input id="speed" type="range" min="0.1" max="0.5" step="0.05" value="0.3"></div></fieldset><div class="divider"></div><div class="meta-line"><span>플랫폼 길이 × 폭</span><span>0.8 × 0.7 m</span></div><div class="meta-line"><span>출발 · 목적점</span><span>동일</span></div><p class="hint">지형과 정책을 고정한 상태에서 두 경로를 실행합니다. 회전 특성도 기록됩니다.</p></section>
-<section class="surface panel"><h2><span class="number">03</span> 보행 미리보기</h2><button class="primary" id="generate" disabled>두 경로 보행 생성</button><button class="secondary danger" id="cancel" hidden>계산 중지</button><p class="hint" id="run-hint">실제 정책의 물리 시뮬레이션을 계산한 뒤, 두 경로를 같은 시간 배율로 재생합니다.</p><button class="secondary research-only" id="export-runs" disabled>실행 기록 내려받기</button></section>
+<section class="surface panel"><h2><span class="number">03</span> 보행 미리보기</h2><button class="primary" id="generate" disabled>두 경로 보행 생성</button><button class="secondary danger" id="cancel" hidden>계산 중지</button><p class="hint" id="run-hint">실제 정책의 물리 시뮬레이션을 계산한 뒤, 두 경로를 같은 시간 배율로 재생합니다.</p><button class="secondary research-only" id="export-runs" disabled>실행 기록 내려받기</button><details class="research-only"><summary>성능 측정 · web-v1</summary><pre id="performance-metrics" style="white-space:pre-wrap;font-size:11px"></pre><p class="hint">자산 바이트는 압축 전 크기입니다. 계산시간과 보행시간은 다릅니다.</p></details></section>
 <section class="surface panel research-only"><details><summary>응답 저장 연결</summary><div class="field"><label for="api-url">응답 API 주소</label><input id="api-url" type="url" placeholder="https://your-server.example/api" autocomplete="off"></div><button class="secondary" id="connect-api">저장 연결 확인</button><p class="hint" id="api-status">미연결 · 설문 미리보기 응답은 이 기기에만 저장됩니다.</p><button class="secondary" id="export-responses">기기 응답 내려받기</button></details></section></aside></div><footer class="footer"><span>RUBI · Human Preference Path<br>시뮬레이션에서 관찰한 보행에 대한 경로 선호를 기록합니다.</span><span>MuJoCo 3.13.0 · ONNX Runtime Web 1.30.0<br>지형 · 로봇 · 제어기 조건에 따른 연구 자료</span></footer></main>`;
 
 const el=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
@@ -30,6 +31,9 @@ const error=(text:string)=>{el('error').textContent=text;el('error').hidden=!tex
 const stored=<T>(key:string,fallback:T):T=>{try{return JSON.parse(localStorage.getItem('RUBI_Human_Preference_Path:'+key)||'null')??fallback;}catch{return fallback;}};
 const persist=(key:string,value:unknown)=>{try{localStorage.setItem('RUBI_Human_Preference_Path:'+key,JSON.stringify(value));return true;}catch{error('이 브라우저는 임시 저장을 허용하지 않습니다. 서버 저장 연결을 사용하세요.');return false;}};
 const session=stored<string>('rubi-hpp-participant',crypto.randomUUID());persist('rubi-hpp-participant',session);
+const rolloutCache = new RolloutCache();
+const performanceMetrics: Record<string, unknown> = {pipeline: 'web-v1'};
+function showPerformance() { el('performance-metrics').textContent = JSON.stringify(performanceMetrics, null, 2); }
 let scenario=makeScenario(),bundle:Bundle|undefined,networks:OnnxNetworks|undefined,engine:Physics|undefined;
 let viewer:Viewer;
 try {viewer=new Viewer(el<HTMLCanvasElement>('world'));viewer.setScenario(scenario);} catch(e){error('3D 화면을 시작할 수 없습니다. WebGL을 지원하는 브라우저에서 다시 열어 주세요. '+String(e));throw e;}
@@ -74,7 +78,7 @@ async function rebuild() {
   if(!bundle)return;
   // Detour geometry and speed do not change the MuJoCo world. Reuse the
   // already-loaded model whenever the platform height is unchanged.
-  if(engine && Math.abs(engine.scenario.height-scenario.height)<1e-10) {
+  if(engine && Math.abs(engine.scenario.height-scenario.height)<1e-10 && engine.scenario.width===scenario.width && engine.scenario.depth===scenario.depth) {
     engine.scenario=scenario;
     engine.reset();
     refresh();
@@ -96,11 +100,22 @@ async function rebuild() {
   engine=next;
   refresh();
 }
-async function importFiles(files:File[]) {
+async function importFiles(files:File[], preparedBundle?:Bundle) {
   if(busy)return;error('');busy=true;refresh();status('모델과 정책 파일을 검사하고 있어요.');let nextNetworks:OnnxNetworks|undefined,nextEngine:Physics|undefined;
   try {
-    const candidate=await loadFiles(files);nextNetworks=await OnnxNetworks.create(candidate.files);nextEngine=await Physics.create(candidate,scenario);
-    viewer.attach(nextEngine);engine?.dispose();await networks?.dispose();bundle=candidate;networks=nextNetworks;engine=nextEngine;nextNetworks=undefined;nextEngine=undefined;
+    const candidate=preparedBundle ?? await loadFiles(files);
+    // Do not overlap two MuJoCo models or two policy sessions during re-import.
+    viewer.engine=undefined; viewer.clear(viewer.robot); viewer.robotMeshes=[]; viewer.robot.visible=false;
+    engine?.dispose(); engine=undefined; await networks?.dispose(); networks=undefined; bundle=undefined;
+    rolloutCache.clear();
+    let stage=performance.now(); nextNetworks=await OnnxNetworks.create(candidate.files);
+    performanceMetrics.onnxCreateMs=performance.now()-stage;
+    stage=performance.now(); nextEngine=await Physics.create(candidate,scenario);
+    performanceMetrics.physicsCreateMs=performance.now()-stage;
+    performanceMetrics.physicsStages=nextEngine.loadMetrics;
+    stage=performance.now();
+    viewer.attach(nextEngine);viewer.robot.visible=true;bundle=candidate;networks=nextNetworks;engine=nextEngine;nextNetworks=undefined;nextEngine=undefined;
+    performanceMetrics.viewerAttachMs=performance.now()-stage; showPerformance();
     resetTrial();el('file-status').textContent=`파일 검사 통과 · ${candidate.files.size+1}개 연결. 보행 성능은 실행 후 확인하세요.`;
     status('RUBI 연결 완료. 두 경로의 보행을 생성하세요.');
   } catch(e) {error(String(e));status('필요한 파일과 정책 구성을 확인해 주세요.');await nextNetworks?.dispose();nextEngine?.dispose();}
@@ -117,12 +132,21 @@ for(const id of ['height','detour','speed']) input(id).oninput=()=>{
 button('generate').onclick=async()=>{
   if(!bundle||!networks||busy)return;error('');resetTrial();busy=true;abort=new AbortController();refresh();el('progress').classList.add('visible');button('cancel').hidden=false;viewer.robot.visible=false;
   try {
-    await rebuild();viewer.robot.visible=false;
+    const rebuildStart=performance.now(); await rebuild(); performanceMetrics.rebuildMs=performance.now()-rebuildStart; viewer.robot.visible=false;
     for(const key of [aKey,bKey]) {
       const label=key===aKey?'A':'B';status(`경로 ${label}의 실제 정책 보행을 계산하고 있어요.`);
-      const computeStarted=performance.now();
-      const run=await engine!.rollout(key,networks,abort.signal,(time)=>{el('progress-label').textContent=`경로 ${label} · 시뮬레이션 ${time.toFixed(1)}초 계산 중`;});
-      rollouts[key]={...run,computeMs:performance.now()-computeStarted};refresh();
+      const cacheKey=rolloutKey(bundle.hashes,PROFILE,scenario,key), cached=rolloutCache.get(cacheKey);
+      if(cached) {
+        rollouts[key]={...cached,id:crypto.randomUUID(),scenarioId:scenario.id,cacheHit:true,sourceRolloutId:cached.id,sourceComputeMs:cached.computeMs,computeMs:0};
+        el('progress-label').textContent=`경로 ${label} · 동일 조건의 검증된 실행 기록 재사용`;
+      } else {
+        const computeStarted=performance.now();
+        const run=await engine!.rollout(key,networks,abort.signal,(time)=>{el('progress-label').textContent=`경로 ${label} · 시뮬레이션 ${time.toFixed(1)}초 계산 중`;});
+        rollouts[key]={...run,computeMs:performance.now()-computeStarted,cacheHit:false};
+        rolloutCache.set(cacheKey,rollouts[key]!);
+      }
+      performanceMetrics[key]={computeMs:rollouts[key]!.computeMs,simulationSeconds:rollouts[key]!.duration,cacheHit:rollouts[key]!.cacheHit,completed:rollouts[key]!.completed,reason:rollouts[key]!.reason};
+      performanceMetrics.cacheEntries=rolloutCache.size;showPerformance();refresh();
     }
     status(rollouts.direct!.completed&&rollouts.detour!.completed?'두 경로가 도착했습니다. 보행을 확인하세요.':'완주하지 못한 경로가 있습니다. 실행 기록을 확인하세요.');
     engine!.applyFrame(rollouts[aKey]!.frames[0]);viewer.updateRobot();viewer.robot.visible=true;current=aKey;
@@ -187,7 +211,7 @@ button('next-trial').onclick=()=>{
   trial++;applyTrial();resetTrial();saveProgress();viewer.setScenario(scenario);viewer.robot.visible=false;status('다음 장면의 보행을 생성해 주세요.');
 };
 function download(data:unknown,name:string) {const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-button('export-runs').onclick=()=>download({schemaVersion:1,scenario,profile:PROFILE,hashes:bundle?.hashes,rollouts},`rubi-runs-${scenario.id}.json`);
+button('export-runs').onclick=()=>download({schemaVersion:1,scenario,profile:PROFILE,hashes:bundle?.hashes,rollouts,performance:performanceMetrics},`rubi-runs-${scenario.id}.json`);
 button('export-responses').onclick=()=>download(localResponses,'rubi-preference-responses.json');
 
 async function bootstrap() {
@@ -202,8 +226,9 @@ async function bootstrap() {
     if(study.bundleBaseUrl){
       const base=new URL(study.bundleBaseUrl,new URL(import.meta.env.BASE_URL,location.href));
       status('배포 모델과 정책을 내려받고 있어요.');
-      const files=await fetchHostedFiles(base);
-      await importFiles(files);
+      const loaded=await fetchHostedBundle(base,status);
+      performanceMetrics.assets=loaded.metrics;
+      await importFiles([],loaded.bundle);
     }
     if(study.status==='released'){if(!study.bundleBaseUrl||!study.responseApi)throw new Error('공개 설문에는 모델 자산과 응답 API를 모두 설정해야 합니다.');button('studio-mode').hidden=true;button('survey-mode').textContent='설문 참여';setMode(true);}
   }catch(e){error(String(e));}

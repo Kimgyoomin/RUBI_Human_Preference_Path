@@ -2,7 +2,7 @@
   "id": "rubi-hpp-pilot-v1",
   "status": "draft",
   "responseApi": "",
-  "bundleBaseUrl": "./models/rubi/",
+  "bundleBaseUrl": "./models/rubi-web/",
   "scenarios": [
     {
       "height": 0.05,
