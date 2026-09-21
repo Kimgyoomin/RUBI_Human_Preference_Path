@@ -9,7 +9,7 @@ const id = value => typeof value === 'string' && /^[a-zA-Z0-9_.:-]{1,180}$/.test
 const positive = value => Number.isFinite(value) && value >= 0;
 export function validateResponse(p) {
   if (!p || typeof p !== 'object' || !['submissionId','participantId','experimentId','trialId'].every(k => id(p[k]))) return 'Invalid identifiers';
-  if (p.schemaVersion !== 1 || !['draft','released'].includes(p.studyStatus) || !['direct','detour','unsure'].includes(p.choice)) return 'Invalid schema or choice';
+  if (p.schemaVersion !== 1 || !['draft','released'].includes(p.studyStatus) || !['direct','detour','tie','skip','unsure'].includes(p.choice)) return 'Invalid schema or choice';
   if (!p.presentation || new Set([p.presentation.a,p.presentation.b]).size !== 2 || ![p.presentation.a,p.presentation.b].every(x => ['direct','detour'].includes(x))) return 'Invalid presentation';
   const s=p.scenario;
   if (!s || !positive(s.height) || s.height>.12 || !Number.isFinite(s.detour) || s.detour<.4 || s.detour>2.4 || !Number.isFinite(s.speed) || s.speed<.1 || s.speed>.5) return 'Invalid scenario';

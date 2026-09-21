@@ -10,7 +10,7 @@ import type { Bundle } from '../core/model.ts';
 let modulePromise:Promise<any>|undefined;
 export const loadEngine=()=>modulePromise??=(loadMujoco({locateFile:(p:string)=>p.endsWith('.wasm')?new URL(`${import.meta.env.BASE_URL}vendor/mujoco/mujoco.wasm`,window.location.href).href:p}));
 export type Frame={time:number;qpos:number[]};
-export type Rollout={cacheHit?:boolean;sourceRolloutId?:string;sourceComputeMs?:number;computeMs?:number;id:string;route:RouteKey;scenarioId:string;frames:Frame[];duration:number;completed:boolean;reason:string;actualLength:number;plannedLength:number;maxError:number;inferences:number;simulator:string;profile:string};
+export type Rollout={cacheHit?:boolean;sourceRolloutId?:string;sourceComputeMs?:number;computeMs?:number;id:string;route:RouteKey;scenarioId:string;frames:Frame[];duration:number;movingDurationS:number;settleDurationS:number;completed:boolean;reason:string;actualLength:number;distanceAtArrivalM:number;achievedMeanXyMps:number;meanFollowerVxMps:number;meanPolicyVxCommand:number;plannedLength:number;maxError:number;inferences:number;simulator:string;profile:string};
 
 export class Physics {
   mj:any; model:any; data:any; vfs:any; scenario:Scenario;
@@ -80,6 +80,7 @@ export class Physics {
     const follower=new Follower(this.scenario.routes[route],this.scenario.speed);
     const frames:Frame[]=[],start=this.data.time;
     let previous=this.position(),actualLength=0,maxError=0,completed=false,reason='시간 초과',settledAt=-1;
+    let distanceAtArrivalM=0,commandSamples=0,sumFollowerVx=0,sumPolicyVx=0;
     const maxTime=Math.min(100,length(this.scenario.routes[route])/this.scenario.speed*3+8);
     let iterations=0;
     while(this.data.time-start<maxTime) {
@@ -91,17 +92,25 @@ export class Physics {
       const yaw=Math.atan2(2*(w*z+x*y),1-2*(y*y+z*z));
       const command=follower.command([pos[0],pos[1]],yaw);maxError=Math.max(maxError,command.error);
       if(command.error>0.65 && time>1) {reason='경로 이탈';break;}
-      if(command.done && settledAt<0) settledAt=time;
+      if(command.done && settledAt<0) {settledAt=time;distanceAtArrivalM=actualLength;}
       if(!command.done)settledAt=-1;
       if(settledAt>=0 && time-settledAt>=0.6) {completed=true;reason='도착';break;}
       if(iterations%10===0) frames.push({time,qpos:Array.from(q)});
-      this.step(await control.update(this.state(),navCommand(command.velocity),networks));
+      const policyCommand=navCommand(command.velocity);
+      sumFollowerVx+=command.velocity[0];sumPolicyVx+=policyCommand[0];commandSamples++;
+      this.step(await control.update(this.state(),policyCommand,networks));
       const next=this.position(); actualLength+=Math.hypot(next[0]-previous[0],next[1]-previous[1]);previous=next;
       if(iterations++%50===0) {onProgress(time,next);await yieldUi();}
     }
     const duration=this.data.time-start;frames.push({time:duration,qpos:Array.from(this.data.qpos)});
     this.data.ctrl.fill(0);
-    return {id:crypto.randomUUID(),route,scenarioId:this.scenario.id,frames,duration,completed,reason,actualLength,plannedLength:length(this.scenario.routes[route]),maxError,inferences:control.inferenceCount,simulator:'MuJoCo WASM 3.13.0',profile:PROFILE.id};
+    const movingDurationS=settledAt>=0?settledAt:duration;
+    if(settledAt<0)distanceAtArrivalM=actualLength;
+    const achievedMeanXyMps=movingDurationS>0?distanceAtArrivalM/movingDurationS:0;
+    return {id:crypto.randomUUID(),route,scenarioId:this.scenario.id,frames,duration,movingDurationS,
+      settleDurationS:Math.max(0,duration-movingDurationS),completed,reason,actualLength,distanceAtArrivalM,achievedMeanXyMps,
+      meanFollowerVxMps:commandSamples?sumFollowerVx/commandSamples:0,meanPolicyVxCommand:commandSamples?sumPolicyVx/commandSamples:0,
+      plannedLength:length(this.scenario.routes[route]),maxError,inferences:control.inferenceCount,simulator:'MuJoCo WASM 3.13.0',profile:PROFILE.id};
   }
   dispose() {if(this.disposed)return;this.disposed=true;this.data.delete();this.model.delete();this.vfs.delete();}
 }

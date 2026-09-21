@@ -55,7 +55,7 @@ export class Viewer {
       }
     }
     for(const [x,color] of [[0,0x087d79],[6,0x254554]] as const) {const marker=new T.Mesh(new T.CylinderGeometry(0.13,0.13,0.009,32),new T.MeshStandardMaterial({color}));marker.rotation.x=Math.PI/2;marker.position.set(x,0,0.009);this.world.add(marker);}
-    this.label('START',0,-0.5,0.12);this.label('GOAL',6,-0.5,0.12);this.label(`${Math.round(s.height*100)} cm`,3,-0.55,0.28);
+    this.label('START',0,-0.5,0.12);this.label('GOAL',6,-0.5,0.12);
   }
   setCamera(preset:'overview'|'step'|'top') {if(preset==='overview'){this.camera.position.set(7,-7,5.5);this.controls.target.set(3,0,0.15);}if(preset==='step'){this.camera.position.set(4.3,-2.4,1.6);this.controls.target.set(3,0,0.2);}if(preset==='top'){this.camera.position.set(3,-0.01,9);this.controls.target.set(3,0,0);}this.controls.update();}
   attach(engine:Physics) {

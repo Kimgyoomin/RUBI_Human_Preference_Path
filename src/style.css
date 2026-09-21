@@ -12,3 +12,14 @@
 
 .main-column,.sidebar{min-width:0}.route-card{min-width:0}.route-title{gap:8px}.route-title span{text-align:right}.consent{overflow-wrap:anywhere}
 @media(max-width:760px){.layout{grid-template-columns:minmax(0,1fr)}.topbar{flex-wrap:wrap}.playback{flex-wrap:wrap}.playback input{order:4;flex-basis:100%;min-width:0}.time{margin-left:auto}.route-title{align-items:flex-start;flex-direction:column}.route-title span{text-align:left}.choices button{min-width:90px}}
+
+
+/* End-of-study background profile */
+.profile-grid{display:grid;grid-template-columns:1fr;gap:14px;margin:18px 0}
+.profile-grid label{display:grid;gap:7px;font-weight:700;color:#183542}
+.profile-grid select{width:100%;padding:11px 12px;border:1px solid #b9c9d0;border-radius:10px;background:#fff;color:#17313c;font:inherit}
+.profile-grid select:focus{outline:2px solid #5ba8a3;outline-offset:1px}
+@media(min-width:900px){.profile-grid{grid-template-columns:1fr 1fr}.profile-grid label:last-child{grid-column:1/-1}}
+
+.participant-mode .route-card .route-metric,.participant-mode .route-card>p{visibility:hidden}
+.tradeoff{margin:10px 0 14px;padding:12px 14px;border-radius:10px;background:#eef6f5;border:1px solid #bfd9d6;font-weight:800;color:#153f43;white-space:pre-wrap}
