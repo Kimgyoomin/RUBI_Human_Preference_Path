@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { mkdir, writeFile, rm } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 
-// Minimal ONNX MatMul fixtures. They contain zero test weights, NOT RUBI policy weights.
+// Synthetic engine fixtures are separate from the real RUBI locomotion check below.
 const v = n => { const a=[]; do {const b=n%128;n=Math.floor(n/128);a.push(b|(n?128:0));}while(n);return Buffer.from(a); };
 const int=(n,x)=>Buffer.concat([v(n*8),v(x)]);
 const bytes=(n,x)=>{const b=Buffer.isBuffer(x)?x:Buffer.from(x);return Buffer.concat([v(n*8+2),v(b.length),b]);};
@@ -21,7 +21,7 @@ await mkdir('public/__smoke_models',{recursive:true});
 await writeFile('public/__smoke_models/encoder.onnx',model(330,32));
 await writeFile('public/__smoke_models/policy.onnx',model(65,6));
 const server=spawn('npm',['run','dev','--','--port','4177','--strictPort'],{stdio:'inherit'});
-let browser;
+let browser,page;
 try {
   let ready=false;
   for(let i=0;i<100;i++){
@@ -30,22 +30,19 @@ try {
   }
   assert.ok(ready,'Vite server did not start');
   browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-angle=swiftshader','--enable-webgl']});
-  const page=await browser.newPage({viewport:{width:1440,height:1000}});
+  page=await browser.newPage({viewport:{width:1440,height:1000}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('http://127.0.0.1:4177/',{waitUntil:'networkidle'});
   await page.locator('#world').waitFor();
   assert.ok(await page.locator('#world').isVisible());
   assert.ok((await page.locator('h1').innerText()).includes('두 가지 경로'));
-  // Load the actual hosted RUBI XML/STL/ONNX bundle. This catches MuJoCo
-  // decoder errors that a synthetic physics fixture cannot exercise.
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('RUBI 연결 완료'),null,{timeout:180000});
   assert.ok(await page.locator('#error').isHidden(),'actual RUBI bundle reported a UI error');
-  assert.ok(await page.locator('#generate').isEnabled(),'actual RUBI model should enable rollout generation');
+  assert.ok(await page.locator('#generate').isEnabled());
   await page.screenshot({path:'artifacts/desktop.png',fullPage:true});
   const runtime=await page.evaluate(async()=>{
     const {loadEngine}=await import('/src/runtime/physics.ts');
-    const mj=await loadEngine();
-    const vfs=new mj.MjVFS();
+    const mj=await loadEngine(),vfs=new mj.MjVFS();
     vfs.addBuffer('smoke.xml',new TextEncoder().encode('<mujoco><option timestep="0.002"/><worldbody><body pos="0 0 1"><freejoint/><geom type="sphere" size="0.05" mass="1"/></body></worldbody></mujoco>'));
     let model,data;
     try{
@@ -60,19 +57,34 @@ try {
       const networks=await OnnxNetworks.create(files);
       try{
         const latent=await networks.encode(new Float32Array(330)),action=await networks.act(new Float32Array(65));
-        return {physics,latentSize:latent.length,actionSize:action.length,finite:[...latent,...action].every(Number.isFinite),fixture:'synthetic zero-weight ONNX, not RUBI locomotion'};
+        return {physics,latentSize:latent.length,actionSize:action.length,finite:[...latent,...action].every(Number.isFinite),fixture:'synthetic zero-weight engine fixture; real policy is tested separately'};
       }finally{await networks.dispose();}
     }finally{data?.delete();model?.delete();vfs.delete();}
   });
-  assert.ok(Math.abs(runtime.physics.time-0.02)<1e-9);
-  assert.ok(runtime.physics.z<1);
+  assert.ok(Math.abs(runtime.physics.time-0.02)<1e-9);assert.ok(runtime.physics.z<1);
   assert.equal(runtime.latentSize,32);assert.equal(runtime.actionSize,6);assert.ok(runtime.finite);
+  // Exercise the real user path, including scene rebuild, startup weld release,
+  // thousands of actual encoder/policy evaluations, both routes and cache reuse.
+  await page.locator('#height').evaluate(e=>{e.value='0';e.dispatchEvent(new Event('input',{bubbles:true}));});
+  await page.locator('#generate').click();
+  await page.waitForFunction(()=>!document.querySelector('#generate')?.disabled,null,{timeout:240000});
+  assert.ok(await page.locator('#error').isHidden(),await page.locator('#error').textContent());
+  const actual=JSON.parse(await page.locator('#performance-metrics').textContent());
+  assert.ok(actual.direct.completed&&actual.detour.completed,'actual flat RUBI routes did not both reach the goal');
+  assert.ok(actual.direct.simulationSeconds>1&&actual.detour.simulationSeconds>1);
+  await page.screenshot({path:'artifacts/actual-flat.png',fullPage:true});
+  await page.locator('#generate').click();
+  await page.waitForFunction(()=>!document.querySelector('#generate')?.disabled,null,{timeout:60000});
+  const cached=JSON.parse(await page.locator('#performance-metrics').textContent());
+  assert.ok(cached.direct.cacheHit&&cached.detour.cacheHit,'same-condition successful rollouts were not reused');
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:'artifacts/mobile.png',fullPage:true});
-  assert.ok(await page.locator('#world').isVisible());
-  assert.deepEqual(errors,[]);
-  await writeFile('artifacts/browser-smoke.json',JSON.stringify({status:'PASS',runtime,errors},null,2));
-  console.log('BROWSER_SMOKE_PASS',JSON.stringify(runtime));
+  assert.ok(await page.locator('#world').isVisible());assert.deepEqual(errors,[]);
+  await writeFile('artifacts/browser-smoke.json',JSON.stringify({status:'PASS',runtime,actualFlat:actual,cachedRepeat:cached,errors},null,2));
+  console.log('BROWSER_SMOKE_PASS',JSON.stringify({runtime,actualFlat:actual,cachedRepeat:cached}));
+}catch(e){
+  await page?.screenshot({path:'artifacts/browser-failure.png',fullPage:true}).catch(()=>{});
+  throw e;
 }finally{
   await browser?.close();server.kill('SIGTERM');
   await rm('public/__smoke_models',{recursive:true,force:true});
