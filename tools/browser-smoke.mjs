@@ -38,7 +38,7 @@ try {
   assert.ok((await page.locator('h1').innerText()).includes('두 가지 경로'));
   // Load the actual hosted RUBI XML/STL/ONNX bundle. This catches MuJoCo
   // decoder errors that a synthetic physics fixture cannot exercise.
-  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('RUBI 연결 완료'),{timeout:180000});
+  await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('RUBI 연결 완료'),null,{timeout:180000});
   assert.ok(await page.locator('#error').isHidden(),'actual RUBI bundle reported a UI error');
   assert.ok(await page.locator('#generate').isEnabled(),'actual RUBI model should enable rollout generation');
   await page.screenshot({path:'artifacts/desktop.png',fullPage:true});
