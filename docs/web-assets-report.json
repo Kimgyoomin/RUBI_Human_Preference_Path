@@ -1,0 +1,81 @@
+{
+  "sourcePreserved": true,
+  "identicalXmlPolicyAndFootContacts": true,
+  "originalMeshBytes": 75904456,
+  "webMeshBytes": 8764106,
+  "reductionPercent": 88.45376613989566,
+  "meshes": [
+    {
+      "mesh": "BODY",
+      "originalBytes": 36632084,
+      "webBytes": 3000034,
+      "originalFaces": 732640,
+      "webFaces": 59999,
+      "aabbMaxDeltaMeters": 0.0002571195363998413,
+      "sourceSha256": "7ce43bdab7f6006ea45c9e89933a6d7a89949a302b2ec2097cfa0f60a924501a",
+      "webSha256": "569024f99c36729d64d39ca7eb8935d8d15ebf726178be7d11df81eb2fcccd77"
+    },
+    {
+      "mesh": "L_HIP",
+      "originalBytes": 7864284,
+      "webBytes": 1000084,
+      "originalFaces": 157284,
+      "webFaces": 20000,
+      "aabbMaxDeltaMeters": 0.0013935267925262451,
+      "sourceSha256": "224c506ec7452eb0dc650c0e3dc1553b565e4f5760058d3fe3f71598b714f634",
+      "webSha256": "6d9bf80d33bdcf606e2d0ed9877b3521aecd2e58fd8c7b69eab54950f977252d"
+    },
+    {
+      "mesh": "R_HIP",
+      "originalBytes": 7851784,
+      "webBytes": 1000034,
+      "originalFaces": 157034,
+      "webFaces": 19999,
+      "aabbMaxDeltaMeters": 0.0013935267925262451,
+      "sourceSha256": "26b021bc61e47dc45c675e81082f1f45b4e3ab1e63778c5bc318993c39c4d763",
+      "webSha256": "dc1226db265a912076c875ef36a588d63cc8aa2e74c27d24423a5aa9330a824d"
+    },
+    {
+      "mesh": "L_THIGH",
+      "originalBytes": 10914084,
+      "webBytes": 1250034,
+      "originalFaces": 218280,
+      "webFaces": 24999,
+      "aabbMaxDeltaMeters": 0.0019199252128601074,
+      "sourceSha256": "69132f5ec359e00799128e9c6fa0cb6199216b19d96a944598ff4f40b4dec9a2",
+      "webSha256": "d9d78418d78a059ba3d1946dc20c098678b34b768b8a4a4744d39cca4352c07a"
+    },
+    {
+      "mesh": "R_THIGH",
+      "originalBytes": 10912684,
+      "webBytes": 1250084,
+      "originalFaces": 218252,
+      "webFaces": 25000,
+      "aabbMaxDeltaMeters": 0.0017615929245948792,
+      "sourceSha256": "3e0f4965d2574101bb3ff84e5ee55aefb82de7beb1af296ba04e09e25745d0c0",
+      "webSha256": "85f8b931c9710824bc59091447979a8a9c1901f89596ed7307d81057bef79225"
+    },
+    {
+      "mesh": "L_CALF",
+      "originalBytes": 533884,
+      "webBytes": 300084,
+      "originalFaces": 10676,
+      "webFaces": 6000,
+      "aabbMaxDeltaMeters": 0.00017136335372924805,
+      "sourceSha256": "c7deabafdc6a5a98f3e21d90e3f7c7afbac8ee56ffbba6b13b9a1d6a43f4e766",
+      "webSha256": "dcb6b3b039cd8b223d4ce242b0099d3c4389f482220c700b2842cb5cce49e6e5"
+    },
+    {
+      "mesh": "R_CALF",
+      "originalBytes": 531984,
+      "webBytes": 300084,
+      "originalFaces": 10638,
+      "webFaces": 6000,
+      "aabbMaxDeltaMeters": 0.00010228995233774185,
+      "sourceSha256": "9da8cb3d7a08a3b1d75450eb31f0e3696be05434deef2f8d6f40919b43579f4b",
+      "webSha256": "fd05c6ec0ac4ff83abdfe74a79597323373407d8e06ed4578abb98293eb5eee3"
+    }
+  ],
+  "method": "QEM fast-simplification 0.1.13; no scale/pose/inertia/contact edits",
+  "limits": "AABB comparison only; inspect silhouette before releasing a study."
+}

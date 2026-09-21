@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "profile": "gazebo-terrain-330-32-65-6",
+  "disclosure": "All listed files are downloaded by participants when this website is publicly deployed.",
+  "files": [
+    {
+      "path": "rubi.xml",
+      "sha256": "302ed3f635f59104a2ace19ab08ec4636eb4e66666b94957bf75c05f523a5e7e"
+    },
+    {
+      "path": "encoder.onnx",
+      "sha256": "8d04fa39832111a7c52dc012cc919afb387e17301799a863830c4fa83ab9d1ed"
+    },
+    {
+      "path": "policy.onnx",
+      "sha256": "bb7c45952e7471975c024127f8c8814f997ef1194e56f6c271f3834343939732"
+    },
+    {
+      "path": "meshes/BODY.STL",
+      "sha256": "569024f99c36729d64d39ca7eb8935d8d15ebf726178be7d11df81eb2fcccd77"
+    },
+    {
+      "path": "meshes/L_HIP.STL",
+      "sha256": "6d9bf80d33bdcf606e2d0ed9877b3521aecd2e58fd8c7b69eab54950f977252d"
+    },
+    {
+      "path": "meshes/L_THIGH.STL",
+      "sha256": "d9d78418d78a059ba3d1946dc20c098678b34b768b8a4a4744d39cca4352c07a"
+    },
+    {
+      "path": "meshes/L_CALF.STL",
+      "sha256": "dcb6b3b039cd8b223d4ce242b0099d3c4389f482220c700b2842cb5cce49e6e5"
+    },
+    {
+      "path": "meshes/L_TIP.STL",
+      "sha256": "7fb4857cb9091f96e57a8ed68c6e26881802753f7a099287f7d20d66673aa58f"
+    },
+    {
+      "path": "meshes/R_HIP.STL",
+      "sha256": "dc1226db265a912076c875ef36a588d63cc8aa2e74c27d24423a5aa9330a824d"
+    },
+    {
+      "path": "meshes/R_THIGH.STL",
+      "sha256": "85f8b931c9710824bc59091447979a8a9c1901f89596ed7307d81057bef79225"
+    },
+    {
+      "path": "meshes/R_CALF.STL",
+      "sha256": "fd05c6ec0ac4ff83abdfe74a79597323373407d8e06ed4578abb98293eb5eee3"
+    },
+    {
+      "path": "meshes/R_TIP.STL",
+      "sha256": "93ec7016e3dffa67a21ce08840afa38936603ca5a7e65ef07a3e8affe6e15b38"
+    }
+  ],
+  "visualVariant": "qem-web-v1",
+  "sourceBundleSha256": "756824d6da5e64bedc172f35b21e78e5c7698b698ece0856c2646462cb085998"
+}

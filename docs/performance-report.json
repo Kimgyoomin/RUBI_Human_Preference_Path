@@ -1,0 +1,150 @@
+{
+  "environment": {
+    "source": "GitHub Actions or local runner; localhost serving, not participant internet timing",
+    "node": "v24.20.0",
+    "browser": "141.0.7390.37"
+  },
+  "models": [
+    {
+      "variant": "rubi",
+      "loader": {
+        "elapsedMs": 1120,
+        "decodedBytes": 77983356
+      },
+      "physics": {
+        "engineMs": 144.3000000000029,
+        "prepareMs": 31727.09999999999,
+        "compileMs": 3301.600000000006,
+        "totalMs": 35176.5,
+        "splitCount": 3
+      },
+      "nq": 13,
+      "nv": 12,
+      "nu": 6,
+      "meshes": 15,
+      "faces": 1518074
+    },
+    {
+      "variant": "rubi-web",
+      "loader": {
+        "elapsedMs": 130.60000000000582,
+        "decodedBytes": 10855450,
+        "files": 12,
+        "hashPasses": 12
+      },
+      "physics": {
+        "engineMs": 122.10000000000582,
+        "prepareMs": 3676.7000000000116,
+        "compileMs": 540.7999999999884,
+        "totalMs": 4342.399999999994,
+        "splitCount": 0
+      },
+      "nq": 13,
+      "nv": 12,
+      "nu": 6,
+      "meshes": 9,
+      "faces": 175267
+    }
+  ],
+  "rollouts": {
+    "wallMs": 10693,
+    "performance": {
+      "pipeline": "web-v1",
+      "assets": {
+        "elapsedMs": 208.40000000002328,
+        "decodedBytes": 10855450,
+        "files": 12,
+        "hashPasses": 12
+      },
+      "onnxCreateMs": 343.3999999999942,
+      "physicsCreateMs": 4762.299999999988,
+      "physicsStages": {
+        "engineMs": 132.59999999997672,
+        "prepareMs": 4083.5999999999767,
+        "compileMs": 543.2000000000116,
+        "totalMs": 4762.1999999999825,
+        "splitCount": 0
+      },
+      "viewerAttachMs": 45.89999999999418,
+      "rebuildMs": 5739.1999999999825,
+      "direct": {
+        "computeMs": 2061.5,
+        "simulationSeconds": 11.166000000000567,
+        "cacheHit": false,
+        "completed": true,
+        "reason": "\ub3c4\ucc29"
+      },
+      "cacheEntries": 2,
+      "detour": {
+        "computeMs": 1898.5,
+        "simulationSeconds": 12.098000000000878,
+        "cacheHit": false,
+        "completed": true,
+        "reason": "\ub3c4\ucc29"
+      }
+    },
+    "routes": {
+      "direct": {
+        "completed": true,
+        "reason": "\ub3c4\ucc29",
+        "duration": 11.166000000000567,
+        "inferences": 1116,
+        "computeMs": 2061.5
+      },
+      "detour": {
+        "completed": true,
+        "reason": "\ub3c4\ucc29",
+        "duration": 12.098000000000878,
+        "inferences": 1210,
+        "computeMs": 1898.5
+      }
+    }
+  },
+  "physicsComparison": {
+    "staticParameters": "identical",
+    "steps": 1000,
+    "dt": 0.002,
+    "maxQposDifference": 0,
+    "scope": "zero-control trajectory including constraints; not full locomotion equivalence proof"
+  },
+  "cachedRepeat": {
+    "wallMs": 255,
+    "metrics": {
+      "pipeline": "web-v1",
+      "assets": {
+        "elapsedMs": 208.40000000002328,
+        "decodedBytes": 10855450,
+        "files": 12,
+        "hashPasses": 12
+      },
+      "onnxCreateMs": 343.3999999999942,
+      "physicsCreateMs": 4762.299999999988,
+      "physicsStages": {
+        "engineMs": 132.59999999997672,
+        "prepareMs": 4083.5999999999767,
+        "compileMs": 543.2000000000116,
+        "totalMs": 4762.1999999999825,
+        "splitCount": 0
+      },
+      "viewerAttachMs": 45.89999999999418,
+      "rebuildMs": 0.29999999998835847,
+      "direct": {
+        "computeMs": 0,
+        "simulationSeconds": 11.166000000000567,
+        "cacheHit": true,
+        "completed": true,
+        "reason": "\ub3c4\ucc29"
+      },
+      "cacheEntries": 2,
+      "detour": {
+        "computeMs": 0,
+        "simulationSeconds": 12.098000000000878,
+        "cacheHit": true,
+        "completed": true,
+        "reason": "\ub3c4\ucc29"
+      }
+    }
+  },
+  "runtimeErrors": [],
+  "status": "PASS"
+}

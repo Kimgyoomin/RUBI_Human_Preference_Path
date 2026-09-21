@@ -15,3 +15,6 @@ artifacts/
 !public/models/rubi/encoder.onnx
 !public/models/rubi/policy.onnx
 !public/models/rubi/meshes/*.STL
+!public/models/rubi-web/encoder.onnx
+!public/models/rubi-web/policy.onnx
+!public/models/rubi-web/meshes/*.STL

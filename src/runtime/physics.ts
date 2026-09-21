@@ -1,3 +1,4 @@
+import { setEqualityActive } from './equality-state.ts';
 import loadMujoco from '@mujoco/mujoco';
 import { PROFILE, TerrainController, navCommand, finite } from '../core/terrain-controller.ts';
 import type { State, Networks } from '../core/terrain-controller.ts';
@@ -9,15 +10,18 @@ import type { Bundle } from '../core/model.ts';
 let modulePromise:Promise<any>|undefined;
 export const loadEngine=()=>modulePromise??=(loadMujoco({locateFile:(p:string)=>p.endsWith('.wasm')?new URL(`${import.meta.env.BASE_URL}vendor/mujoco/mujoco.wasm`,window.location.href).href:p}));
 export type Frame={time:number;qpos:number[]};
-export type Rollout={computeMs?:number;id:string;route:RouteKey;scenarioId:string;frames:Frame[];duration:number;completed:boolean;reason:string;actualLength:number;plannedLength:number;maxError:number;inferences:number;simulator:string;profile:string};
+export type Rollout={cacheHit?:boolean;sourceRolloutId?:string;sourceComputeMs?:number;computeMs?:number;id:string;route:RouteKey;scenarioId:string;frames:Frame[];duration:number;completed:boolean;reason:string;actualLength:number;plannedLength:number;maxError:number;inferences:number;simulator:string;profile:string};
 
 export class Physics {
   mj:any; model:any; data:any; vfs:any; scenario:Scenario;
   jointQ:number[]=[]; jointV:number[]=[]; motors:number[]=[]; gyro=0; quat=0; root=0; support=-1;
   removedWorlds:string[]=[];
+  loadMetrics:Record<string,number>={};
+  private disposed=false;
   private constructor(mj:any,model:any,data:any,vfs:any,scenario:Scenario) {this.mj=mj;this.model=model;this.data=data;this.vfs=vfs;this.scenario=scenario;}
   static async create(bundle:Bundle,scenario:Scenario):Promise<Physics> {
-    const mj=await loadEngine(),vfs=new mj.MjVFS(); let model:any,data:any;
+    const started=performance.now(),mj=await loadEngine(),engineMs=performance.now()-started,vfs=new mj.MjVFS(); let model:any,data:any;
+    const prepareStart=performance.now();
     try {
       const normalized=sceneXml(bundle.xml,scenario);
       const prepared=prepareVisualStlMeshes(normalized.xml,bundle.files);
@@ -29,9 +33,11 @@ export class Physics {
       const xml=new XMLSerializer().serializeToString(doc);
       for(const [p,bytes] of prepared.files) if(!p.endsWith('.onnx')) vfs.addBuffer(p,bytes);
       vfs.addBuffer('rubi.xml',new TextEncoder().encode(xml));
+      const prepareMs=performance.now()-prepareStart,compileStart=performance.now();
       model=mj.MjModel.from_xml_path('rubi.xml',vfs); data=new mj.MjData(model);
+      const compileMs=performance.now()-compileStart;
       const engine=new Physics(mj,model,data,vfs,scenario); engine.removedWorlds=normalized.removed;
-      engine.validate(); engine.reset(); return engine;
+      engine.validate(); engine.reset(); engine.loadMetrics={engineMs,prepareMs,compileMs,totalMs:performance.now()-started,splitCount:prepared.split.length}; return engine;
     } catch(error) {data?.delete();model?.delete();vfs.delete();throw new Error(`MuJoCo 모델 연결 실패: ${String(error)}`);}
   }
   private id(type:string,name:string) {const id=this.mj.mj_name2id(this.model,this.mj.mjtObj[type].value,name);if(id<0) throw new Error(`모델에 ${name}이 없습니다.`);return id;}
@@ -69,7 +75,7 @@ export class Physics {
       this.step(await control.update(this.state(),[0,0,0],networks));
       if(i%40===0) await yieldUi();
     }
-    if(this.support>=0) this.data.eq_active[this.support]=0;
+    if(this.support>=0) setEqualityActive(this.mj,this.model,this.data,this.support,false);
     control.setMode('policy');
     const follower=new Follower(this.scenario.routes[route],this.scenario.speed);
     const frames:Frame[]=[],start=this.data.time;
@@ -97,5 +103,5 @@ export class Physics {
     this.data.ctrl.fill(0);
     return {id:crypto.randomUUID(),route,scenarioId:this.scenario.id,frames,duration,completed,reason,actualLength,plannedLength:length(this.scenario.routes[route]),maxError,inferences:control.inferenceCount,simulator:'MuJoCo WASM 3.13.0',profile:PROFILE.id};
   }
-  dispose() {this.data.delete();this.model.delete();this.vfs.delete();}
+  dispose() {if(this.disposed)return;this.disposed=true;this.data.delete();this.model.delete();this.vfs.delete();}
 }
