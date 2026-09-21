@@ -30,7 +30,7 @@ test('XML, policy weights and foot contact surfaces are exactly unchanged',async
 test('support release changes only its equality flag and frees the out buffer',()=>{
   let values=[1,0,1],freed=0;
   const mj={mjtState:{mjSTATE_EQ_ACTIVE:{value:256}},mj_stateSize:()=>3,
-    DoubleBuffer:class{constructor(a){this.a=Float64Array.from(a);}getView(){return this.a;}delete(){freed++;}},
+    DoubleBuffer:class{constructor(n){assert.ok(Number.isInteger(n));this.a=new Float64Array(n);}GetView(){return this.a;}delete(){freed++;}},
     mj_getState:(_m,_d,b,spec)=>{assert.equal(spec,256);b.a.set(values);},
     mj_setState:(_m,_d,a,spec)=>{assert.equal(spec,256);values=Array.from(a);}};
   setEqualityActive(mj,{}, {},0,false);assert.deepEqual(values,[0,0,1]);assert.equal(freed,1);
