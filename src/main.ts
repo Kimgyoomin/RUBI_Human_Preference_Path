@@ -70,7 +70,32 @@ function refresh() {
   el('scene-badge').textContent=busy?'POLICY ROLLOUT · 계산 중':clip?'실제 정책 실행 기록 · 1× 재생':ready?'RUBI 연결됨 · 보행 생성 전':'WORLD PREVIEW · 보행 미생성';
 }
 function resetTrial() {coverage={direct:new Coverage(),detour:new Coverage()};bothViewedAt=0;previewEvents=[];button('retry-save').hidden=true;playing=false;current=undefined;playTime=0;rollouts={};viewed.clear();viewTime={direct:0,detour:0};replays={direct:0,detour:0};answered=false;pendingPayload=undefined;trialStart=performance.now();button('next-trial').hidden=true;el('completion').hidden=true;input('timeline').value='0';el('time').textContent='0.0 / 0.0 s';refresh();}
-async function rebuild() {if(!bundle)return;const next=await Physics.create(bundle,scenario);viewer.attach(next);engine?.dispose();engine=next;refresh();}
+async function rebuild() {
+  if(!bundle)return;
+  // Detour geometry and speed do not change the MuJoCo world. Reuse the
+  // already-loaded model whenever the platform height is unchanged.
+  if(engine && Math.abs(engine.scenario.height-scenario.height)<1e-10) {
+    engine.scenario=scenario;
+    engine.reset();
+    refresh();
+    return;
+  }
+  // A second full high-poly MuJoCo model can exceed the WASM heap. Release
+  // the current model and its Three.js geometry before constructing the next one.
+  if(engine) {
+    viewer.engine=undefined;
+    viewer.clear(viewer.robot);
+    viewer.robotMeshes=[];
+    viewer.robot.visible=false;
+    engine.dispose();
+    engine=undefined;
+    await new Promise<void>(resolve=>setTimeout(resolve,0));
+  }
+  const next=await Physics.create(bundle,scenario);
+  viewer.attach(next);
+  engine=next;
+  refresh();
+}
 async function importFiles(files:File[]) {
   if(busy)return;error('');busy=true;refresh();status('모델과 정책 파일을 검사하고 있어요.');let nextNetworks:OnnxNetworks|undefined,nextEngine:Physics|undefined;
   try {
