@@ -1,7 +1,7 @@
 from pathlib import Path
 p=Path('src/main.ts');s=p.read_text()
 old='viewer.attach(nextEngine);engine?.dispose();await networks?.dispose();bundle=candidate;'
-new='viewer.attach(nextEngine);bundle=candidate;'
+new='viewer.attach(nextEngine);viewer.robot.visible=true;bundle=candidate;'
 if old in s:
     assert s.count(old)==1
     p.write_text(s.replace(old,new))
