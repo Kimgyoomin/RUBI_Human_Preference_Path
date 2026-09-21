@@ -3,7 +3,7 @@ import { PROFILE, TerrainController, navCommand, finite } from '../core/terrain-
 import type { State, Networks } from '../core/terrain-controller.ts';
 import { Follower, length } from '../core/scenario.ts';
 import type { Scenario,RouteKey } from '../core/scenario.ts';
-import { sceneXml } from '../core/model.ts';
+import { prepareVisualStlMeshes, sceneXml } from '../core/model.ts';
 import type { Bundle } from '../core/model.ts';
 
 let modulePromise:Promise<any>|undefined;
@@ -20,13 +20,14 @@ export class Physics {
     const mj=await loadEngine(),vfs=new mj.MjVFS(); let model:any,data:any;
     try {
       const normalized=sceneXml(bundle.xml,scenario);
-      const doc=new DOMParser().parseFromString(normalized.xml,'application/xml');
+      const prepared=prepareVisualStlMeshes(normalized.xml,bundle.files);
+      const doc=new DOMParser().parseFromString(prepared.xml,'application/xml');
       for(const e of Array.from(doc.querySelectorAll('equality weld'))) {
         const names=[e.getAttribute('site1'),e.getAttribute('site2')];
         if(names.includes('world_body_Connect')&&names.includes('body_world_Connect')) e.setAttribute('name','hpp_start_support');
       }
       const xml=new XMLSerializer().serializeToString(doc);
-      for(const [p,bytes] of bundle.files) if(!p.endsWith('.onnx')) vfs.addBuffer(p,bytes);
+      for(const [p,bytes] of prepared.files) if(!p.endsWith('.onnx')) vfs.addBuffer(p,bytes);
       vfs.addBuffer('rubi.xml',new TextEncoder().encode(xml));
       model=mj.MjModel.from_xml_path('rubi.xml',vfs); data=new mj.MjData(model);
       const engine=new Physics(mj,model,data,vfs,scenario); engine.removedWorlds=normalized.removed;
