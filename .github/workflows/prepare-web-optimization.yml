@@ -37,6 +37,7 @@ jobs:
         run: |
           python tools/optimize_web_assets.py --apply
           python tools/apply_web_optimization.py
+          python tools/finalize_web_optimization.py
           sha256sum --check /tmp/rubi-original.sha256
       - name: Install and validate
         run: |
@@ -66,7 +67,7 @@ jobs:
           sha256sum --check /tmp/rubi-original.sha256
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src public/models/rubi-web public/study.json package.json docs tools/prune-web-dist.mjs
+          git add .gitignore src public/models/rubi-web public/study.json package.json docs tools/prune-web-dist.mjs
           if ! git diff --cached --quiet; then
             git commit -m 'Apply validated web visual bundle, cache, renderer and performance instrumentation'
             git push origin HEAD:perf/web-survey-20260921
