@@ -97,17 +97,18 @@ export function prepareVisualStlMeshes(source:string,input:Map<string,Uint8Array
     });
     files.delete(path);
 
-    const parent=mesh.parentNode!;
-    names.forEach(({name,file},i)=>{
+    const parent=mesh.parentNode as Node|null;
+    if(!parent)throw new Error(`${path}: mesh asset parent가 없습니다.`);
+    const assetNodes=names.map(({name,file})=>{
       const node=mesh.cloneNode(true) as Element;
       node.setAttribute('name',name);node.setAttribute('file',file);
-      if(i===0)parent.replaceChild(node,mesh);else parent.insertBefore(node,(names.length&&parent.childNodes)?null:null);
+      return node;
     });
-    // insertBefore(null) appends, but keep the generated mesh assets together:
-    let anchor=Array.from(parent.childNodes).find(n=>(n as Element).getAttribute?.('name')===names[0].name) ?? null;
-    for(let i=1;i<names.length;i++) {
-      const node=Array.from(parent.childNodes).find(n=>(n as Element).getAttribute?.('name')===names[i].name);
-      if(node&&anchor){parent.removeChild(node);parent.insertBefore(node,anchor.nextSibling);anchor=node;}
+    parent.replaceChild(assetNodes[0],mesh);
+    let assetAnchor:Node=assetNodes[0];
+    for(let i=1;i<assetNodes.length;i++) {
+      parent.insertBefore(assetNodes[i],assetAnchor.nextSibling);
+      assetAnchor=assetNodes[i];
     }
 
     for(const geom of refs) {
