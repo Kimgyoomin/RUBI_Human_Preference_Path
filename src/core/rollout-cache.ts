@@ -7,13 +7,13 @@ export function rolloutKey(hashes: Record<string, string>, profile: unknown, s: 
     world: {height: s.height, width: s.width, depth: s.depth}, speed: s.speed, route, points: s.routes[route]});
 }
 
-/** Same-tab only: no cross-device floating-point equivalence or persistent cache claims.
- * Cache success only. Failed runs can be retried and are never substituted by a success.
- */
+/** Successful same-tab records only. Never assume cross-device numeric identity. */
 export class RolloutCache {
   private entries = new Map<string, {run: Rollout; bytes: number}>();
   private used = 0;
-  constructor(private maxBytes = 24 * 1024 * 1024, private maxEntries = 12) {}
+  private maxBytes: number;
+  private maxEntries: number;
+  constructor(maxBytes = 24 * 1024 * 1024, maxEntries = 12) {this.maxBytes=maxBytes;this.maxEntries=maxEntries;}
   get size() { return this.entries.size; }
   get bytes() { return this.used; }
   clear() { this.entries.clear(); this.used = 0; }
@@ -21,7 +21,6 @@ export class RolloutCache {
     const value = this.entries.get(key);
     if (!value) return undefined;
     this.entries.delete(key); this.entries.set(key, value);
-    // Frames are immutable after completion; sharing avoids a second large copy.
     return value.run;
   }
   set(key: string, run: Rollout): void {
