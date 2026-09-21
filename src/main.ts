@@ -19,7 +19,7 @@ document.querySelector('#app')!.innerHTML=`
 <div class="error" id="error" role="alert" hidden></div>
 <div class="layout"><section class="main-column" aria-label="경로 미리보기"><div class="surface"><div class="viewport"><canvas id="world" aria-label="단차 통과 경로와 평지 우회 경로의 3D 환경"></canvas><div class="view-tools"><button data-camera="overview">전체 경로</button><button data-camera="step">단차 확대</button><button data-camera="top">위에서</button></div><div class="scene-badge" id="scene-badge">WORLD PREVIEW · 보행 미생성</div><div class="scale"><strong>1 m</strong>격자 한 칸 · 실제 비율</div><div class="viewport-overlay" id="progress"><span id="progress-label">보행을 계산하고 있어요.</span><progress></progress></div></div><div class="playback"><button id="play" disabled>재생</button><button id="restart" disabled>처음부터</button><input id="timeline" type="range" min="0" max="1000" value="0" aria-label="보행 재생 위치" disabled><span class="time" id="time">0.0 / 0.0 s</span></div></div>
 <div class="route-grid"><article class="route-card" id="card-a"><div class="route-title">경로 A <span id="viewed-a">미리보기 전</span></div><div class="route-metric"><span id="length-a">6.0</span><small>m</small></div><p id="desc-a">5 cm 플랫폼 통과</p><button id="preview-a" disabled>경로 A 보행 보기</button></article><article class="route-card b" id="card-b"><div class="route-title">경로 B <span id="viewed-b">미리보기 전</span></div><div class="route-metric"><span id="length-b">6.8</span><small>m</small></div><p id="desc-b">평지로 우회</p><button id="preview-b" disabled>경로 B 보행 보기</button></article></div>
-<section class="surface question"><h2>RUBI에게 어느 경로를 지정하시겠습니까?</h2><p id="choice-hint">두 경로의 보행을 끝까지 확인한 뒤 선택할 수 있어요.</p><label class="consent"><input type="checkbox" id="consent"> 시뮬레이션 경로 선호 조사임을 이해했고, 익명 응답 저장에 동의합니다.</label><div class="choices"><button id="choose-a" disabled>경로 A 선택</button><button id="choose-b" disabled>경로 B 선택</button><button id="choose-unsure" disabled>두 경로가 비슷함</button></div><div class="saved" id="save-status" aria-live="polite">현재 연구자 준비 단계입니다. 응답은 아직 수집되지 않습니다.</div><button id="retry-save" class="secondary" hidden>확정한 응답 다시 저장</button><button id="next-trial" class="secondary" hidden>다음 장면</button></section>
+<section class="surface question"><h2>RUBI에게 어느 경로를 지정하시겠습니까?</h2><div id="tradeoff" class="tradeoff" hidden></div><p id="choice-hint">두 경로의 보행을 끝까지 확인한 뒤 선택할 수 있어요.</p><label class="consent"><input type="checkbox" id="consent"> 시뮬레이션 경로 선호 조사임을 이해했고, 익명 응답 저장에 동의합니다.</label><div class="choices"><button id="choose-a" disabled>경로 A 선택</button><button id="choose-b" disabled>경로 B 선택</button><button id="choose-unsure" disabled>두 경로가 비슷함</button></div><div class="saved" id="save-status" aria-live="polite">현재 연구자 준비 단계입니다. 응답은 아직 수집되지 않습니다.</div><button id="retry-save" class="secondary" hidden>확정한 응답 다시 저장</button><button id="next-trial" class="secondary" hidden>다음 장면</button></section>
 <section class="surface question" id="profile" hidden><h2>참가 전 경험에 대한 간단한 질문</h2><p>이번 설명의 내용과 시뮬레이션을 보기 <strong>전</strong>의 경험을 기준으로 답해 주세요.</p>
 <div class="profile-grid">
 <label>로봇 관련 업무·연구·전공 수업 또는 개발 프로젝트 경험
@@ -76,6 +76,9 @@ function refresh() {
     el(`card-${label}`).classList.toggle('selected',current===key);
   }
   const valid=Boolean(rollouts.direct?.completed&&rollouts.detour?.completed);
+  const describe=(key:RouteKey)=>key==='direct'?`${Math.round(scenario.height*100)} cm 단차 통과`:`평지 +${scenario.detour.toFixed(1)} m 우회`;
+  el('tradeoff').textContent=`경로 A · ${describe(aKey)}   /   경로 B · ${describe(bKey)}`;
+  el('tradeoff').hidden=viewed.size!==2;
   for(const id of ['choose-a','choose-b','choose-unsure']) button(id).disabled=!valid||viewed.size!==2||busy||answered||!input('consent').checked||Boolean(pendingPayload);
   button('export-runs').disabled=!rollouts.direct||!rollouts.detour||busy;
   const clip=current?rollouts[current]:undefined;
@@ -195,7 +198,7 @@ function applyTrial() {
 function setMode(value:boolean) {
   if(study.status==='released'&&!value)return;
   if(participant===value)return;
-  participant=value;button('studio-mode').classList.toggle('active',!value);button('survey-mode').classList.toggle('active',value);
+  participant=value;document.body.classList.toggle('participant-mode',value);button('studio-mode').classList.toggle('active',!value);button('survey-mode').classList.toggle('active',value);
   document.querySelectorAll<HTMLElement>('.research-only').forEach(e=>e.hidden=value);
   resetTrial();
   if(value){applyTrial();const saved=stored<{answered:boolean}>(progressKey(),{answered:false});answered=saved.answered;if(answered)button('next-trial').hidden=false;}
