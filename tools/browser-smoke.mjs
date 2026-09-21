@@ -63,7 +63,8 @@ try {
   });
   assert.ok(Math.abs(runtime.physics.time-0.02)<1e-9);assert.ok(runtime.physics.z<1);
   assert.equal(runtime.latentSize,32);assert.equal(runtime.actionSize,6);assert.ok(runtime.finite);
-  // Real ONNX + real RUBI model, flat direct and cosine detour.
+  // Real ONNX + real RUBI model at the fixed study nominal speed.
+  await page.locator('#speed').evaluate(e=>{e.value='0.5';e.dispatchEvent(new Event('input',{bubbles:true}));});
   await page.locator('#height').evaluate(e=>{e.value='0';e.dispatchEvent(new Event('input',{bubbles:true}));});
   await page.locator('#generate').click();
   await page.waitForFunction(()=>!document.querySelector('#generate')?.disabled,null,{timeout:240000});
@@ -71,6 +72,11 @@ try {
   const actual=JSON.parse(await page.locator('#performance-metrics').textContent());
   assert.ok(actual.direct.completed&&actual.detour.completed,'actual flat RUBI routes did not both reach the goal');
   assert.ok(actual.direct.simulationSeconds>1&&actual.detour.simulationSeconds>1);
+  for(const route of ['direct','detour']) {
+    assert.equal(actual[route].nominalSpeedMps,0.5);
+    assert.ok(Number.isFinite(actual[route].achievedMeanXyMps)&&actual[route].achievedMeanXyMps>0);
+    assert.ok(Number.isFinite(actual[route].meanFollowerVxMps)&&actual[route].meanFollowerVxMps>=0);
+  }
   await page.screenshot({path:'artifacts/actual-flat.png',fullPage:true});
   await page.locator('#generate').click();
   await page.waitForFunction(()=>!document.querySelector('#generate')?.disabled,null,{timeout:60000});
@@ -99,7 +105,10 @@ try {
     assert.ok(Math.abs(exported.rollouts.detour.plannedLength-(6+extra))<1e-9);
     assert.ok(exported.scenario.geometry.minCenterlineClearanceM>=.4);
     const run=exported.rollouts.detour;
-    smoothBypasses.push({height:.05,detour:extra,completed:run.completed,reason:run.reason,plannedLength:run.plannedLength,actualLength:run.actualLength,maxError:run.maxError,duration:run.duration,inferences:run.inferences,computeMs:run.computeMs,geometry:exported.scenario.geometry,direct:metrics.direct});
+    smoothBypasses.push({height:.05,detour:extra,completed:run.completed,reason:run.reason,plannedLength:run.plannedLength,actualLength:run.actualLength,
+      distanceAtArrivalM:run.distanceAtArrivalM,movingDurationS:run.movingDurationS,achievedMeanXyMps:run.achievedMeanXyMps,
+      meanFollowerVxMps:run.meanFollowerVxMps,meanPolicyVxCommand:run.meanPolicyVxCommand,maxError:run.maxError,duration:run.duration,
+      inferences:run.inferences,computeMs:run.computeMs,geometry:exported.scenario.geometry,direct:metrics.direct});
     await page.locator('#preview-b').click();
     await page.waitForTimeout(1500);
     await page.locator('#play').click();
