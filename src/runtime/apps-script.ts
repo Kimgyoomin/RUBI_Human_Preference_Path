@@ -45,7 +45,12 @@ export class AppsScriptTransport {
       field.value=JSON.stringify({kind,requestId,payload});form.appendChild(field);document.body.appendChild(form);
       const cleanup=()=>{clearTimeout(timer);window.removeEventListener('message',onMessage);form.remove();};
       const onMessage=(event:MessageEvent)=>{
-        if(event.source!==this.frame.contentWindow)return;
+        let trusted=false;
+        try {
+          const host=new URL(event.origin).hostname;
+          trusted=event.origin.startsWith('https://')&&(host==='script.google.com'||host==='script.googleusercontent.com'||host.endsWith('.googleusercontent.com'));
+        } catch {}
+        if(!trusted)return;
         const data=event.data as AppsScriptReply|undefined;
         if(!data||data.source!=='rubi-hpp-apps-script'||data.requestId!==requestId)return;
         cleanup();

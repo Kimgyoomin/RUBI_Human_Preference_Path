@@ -36,6 +36,8 @@ try {
   await page.locator('#world').waitFor();
   assert.ok(await page.locator('#world').isVisible());
   assert.ok((await page.locator('h1').innerText()).includes('두 가지 경로'));
+  await page.waitForFunction(()=>document.querySelector('#api-status')?.textContent?.includes('중앙 저장 연결 확인'),null,{timeout:30000});
+  assert.ok(((await page.locator('#api-status').textContent())??'').includes('중앙 저장 연결 확인'),'deployed Apps Script collector ping did not confirm');
   await page.waitForFunction(()=>document.querySelector('#status')?.textContent?.includes('RUBI 연결 완료'),null,{timeout:180000});
   assert.ok(await page.locator('#error').isHidden(),'actual RUBI bundle reported a UI error');
   assert.ok(await page.locator('#generate').isEnabled());

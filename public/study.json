@@ -2,7 +2,7 @@
   "id": "rubi-hpp-collector-v3",
   "status": "draft",
   "responseTransport": "apps-script",
-  "responseApi": "",
+  "responseApi": "https://script.google.com/macros/s/AKfycbzkk-mfGemkhbChiP7ldNRfIUYLNJTVzVh40JtScTIYSG2qP6QpWh9rtFHsOKfSvnTnWw/exec",
   "bundleBaseUrl": "./models/rubi-web/",
   "protocolVersion": "collector-v3",
   "profileSchemaVersion": "post-profile-v1",
