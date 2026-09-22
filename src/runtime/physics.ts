@@ -6,25 +6,28 @@ import { Follower, length } from '../core/scenario.ts';
 import type { Scenario,RouteKey } from '../core/scenario.ts';
 import { prepareVisualStlMeshes, sceneXml } from '../core/model.ts';
 import type { Bundle } from '../core/model.ts';
+import { residentSceneXml, activatePlatform, PLATFORM_HEIGHTS_CM, platformName } from './resident-platforms.ts';
 
 let modulePromise:Promise<any>|undefined;
 export const loadEngine=()=>modulePromise??=(loadMujoco({locateFile:(p:string)=>p.endsWith('.wasm')?new URL(`${import.meta.env.BASE_URL}vendor/mujoco/mujoco.wasm`,window.location.href).href:p}));
 export type Frame={time:number;qpos:number[]};
-export type Rollout={cacheHit?:boolean;sourceRolloutId?:string;sourceComputeMs?:number;computeMs?:number;id:string;route:RouteKey;scenarioId:string;frames:Frame[];duration:number;movingDurationS:number;settleDurationS:number;completed:boolean;reason:string;actualLength:number;distanceAtArrivalM:number;achievedMeanXyMps:number;meanFollowerVxMps:number;meanPolicyVxCommand:number;plannedLength:number;maxError:number;inferences:number;simulator:string;profile:string};
+export type Rollout={cacheHit?:boolean;sourceRolloutId?:string;sourceComputeMs?:number;computeMs?:number;id:string;route:RouteKey;scenarioId:string;frames:Frame[];duration:number;movingDurationS:number;settleDurationS:number;completed:boolean;reason:string;actualLength:number;distanceAtArrivalM:number;achievedMeanXyMps:number;meanFollowerVxMps:number;meanPolicyVxCommand:number;plannedLength:number;maxError:number;inferences:number;simulator:string;profile:string;
+  runtimeId?:string;resetVersion?:string;initialQpos?:number[];initialQvel?:number[];executionMode?:string;visibleWallMs?:number;realTimeFactor?:number;maxDisplayGapMs?:number;displayMode?:string};
+export type RolloutOptions={onFrame?:(frame:Frame)=>Promise<void>|void};
 
 export class Physics {
   mj:any; model:any; data:any; vfs:any; scenario:Scenario;
   jointQ:number[]=[]; jointV:number[]=[]; motors:number[]=[]; gyro=0; quat=0; root=0; support=-1;
-  removedWorlds:string[]=[];
-  loadMetrics:Record<string,number>={};
-  private disposed=false;
+  removedWorlds:string[]=[];loadMetrics:Record<string,number>={};
+  readonly runtimeId=crypto.randomUUID();
+  private disposed=false;private running=false;private platforms:number[]=[];
   private constructor(mj:any,model:any,data:any,vfs:any,scenario:Scenario) {this.mj=mj;this.model=model;this.data=data;this.vfs=vfs;this.scenario=scenario;}
   static async create(bundle:Bundle,scenario:Scenario):Promise<Physics> {
     const started=performance.now(),mj=await loadEngine(),engineMs=performance.now()-started,vfs=new mj.MjVFS(); let model:any,data:any;
     const prepareStart=performance.now();
     try {
       const normalized=sceneXml(bundle.xml,scenario);
-      const prepared=prepareVisualStlMeshes(normalized.xml,bundle.files);
+      const prepared=prepareVisualStlMeshes(residentSceneXml(normalized.xml,scenario),bundle.files);
       const doc=new DOMParser().parseFromString(prepared.xml,'application/xml');
       for(const e of Array.from(doc.querySelectorAll('equality weld'))) {
         const names=[e.getAttribute('site1'),e.getAttribute('site2')];
@@ -37,7 +40,8 @@ export class Physics {
       model=mj.MjModel.from_xml_path('rubi.xml',vfs); data=new mj.MjData(model);
       const compileMs=performance.now()-compileStart;
       const engine=new Physics(mj,model,data,vfs,scenario); engine.removedWorlds=normalized.removed;
-      engine.validate(); engine.reset(); engine.loadMetrics={engineMs,prepareMs,compileMs,totalMs:performance.now()-started,splitCount:prepared.split.length}; return engine;
+      engine.validate();engine.setScenario(scenario);
+      engine.loadMetrics={engineMs,prepareMs,compileMs,totalMs:performance.now()-started,splitCount:prepared.split.length,residentPlatformCount:engine.platforms.length};return engine;
     } catch(error) {data?.delete();model?.delete();vfs.delete();throw new Error(`MuJoCo 모델 연결 실패: ${String(error)}`);}
   }
   private id(type:string,name:string) {const id=this.mj.mj_name2id(this.model,this.mj.mjtObj[type].value,name);if(id<0) throw new Error(`모델에 ${name}이 없습니다.`);return id;}
@@ -58,8 +62,18 @@ export class Physics {
     if(this.model.sensor_dim[gyroId]!==3||this.model.sensor_dim[quatId]!==4) throw new Error('IMU sensor 차원이 다릅니다.');
     this.gyro=this.model.sensor_adr[gyroId];this.quat=this.model.sensor_adr[quatId];
     this.support=this.mj.mj_name2id(this.model,this.mj.mjtObj.mjOBJ_EQUALITY.value,'hpp_start_support');
+    this.platforms=PLATFORM_HEIGHTS_CM.map(cm=>this.id('mjOBJ_GEOM',platformName(cm)));
   }
-  reset() { this.mj.mj_resetData(this.model,this.data);this.data.ctrl.fill(0);this.data.qvel.fill(0);this.mj.mj_forward(this.model,this.data); }
+  /** Same compiled model and ONNX sessions. No runtime resize/recompile. */
+  setScenario(scenario:Scenario) {
+    if(this.running)throw new Error('보행 중에는 지형을 바꿀 수 없습니다.');
+    if(scenario.width!==this.scenario.width||scenario.depth!==this.scenario.depth)throw new Error('플랫폼 가로 크기 변경에는 새 모델이 필요합니다.');
+    activatePlatform(this.model,this.platforms,scenario.height);this.scenario=scenario;this.reset();
+  }
+  reset() {
+    if(this.disposed)throw new Error('종료된 시뮬레이터입니다.');
+    this.mj.mj_resetData(this.model,this.data);this.data.ctrl.fill(0);this.data.qvel.fill(0);this.mj.mj_forward(this.model,this.data);
+  }
   state():State {
     const wxyz=Array.from(this.data.sensordata.slice(this.quat,this.quat+4)) as number[];
     return {q:this.jointQ.map(i=>this.data.qpos[i]),qd:this.jointV.map(i=>this.data.qvel[i]),quat:[wxyz[1],wxyz[2],wxyz[3],wxyz[0]],omega:Array.from(this.data.sensordata.slice(this.gyro,this.gyro+3))};
@@ -67,50 +81,63 @@ export class Physics {
   position():number[] { return Array.from(this.data.qpos.slice(this.root,this.root+3)); }
   private step(torque:number[]) { for(let i=0;i<6;i++) this.data.ctrl[this.motors[i]]=torque[i];this.mj.mj_step(this.model,this.data); }
   applyFrame(frame:Frame) {if(frame.qpos.length!==this.model.nq || !finite(frame.qpos)) throw new Error('재생 데이터의 관절 구성이 다릅니다.');this.data.qpos.set(frame.qpos);this.mj.mj_forward(this.model,this.data);}
-  async rollout(route:RouteKey,networks:Networks,signal:AbortSignal,onProgress:(time:number,pos:number[])=>void):Promise<Rollout> {
-    this.reset(); const control=new TerrainController();control.setMode('ready');
-    const yieldUi=()=>new Promise<void>(resolve=>setTimeout(resolve,0));
-    for(let i=0;!control.ready;i++) {
-      if(signal.aborted) throw new DOMException('실행을 취소했습니다.','AbortError');
-      this.step(await control.update(this.state(),[0,0,0],networks));
-      if(i%40===0) await yieldUi();
-    }
-    if(this.support>=0) setEqualityActive(this.mj,this.model,this.data,this.support,false);
-    control.setMode('policy');
-    const follower=new Follower(this.scenario.routes[route],this.scenario.speed);
-    const frames:Frame[]=[],start=this.data.time;
-    let previous=this.position(),actualLength=0,maxError=0,completed=false,reason='시간 초과',settledAt=-1;
-    let distanceAtArrivalM=0,commandSamples=0,sumFollowerVx=0,sumPolicyVx=0;
-    const maxTime=Math.min(100,length(this.scenario.routes[route])/this.scenario.speed*3+8);
-    let iterations=0;
-    while(this.data.time-start<maxTime) {
-      if(signal.aborted) throw new DOMException('실행을 취소했습니다.','AbortError');
-      const pos=this.position(),q=this.data.qpos,r=this.root,w=q[r+3],x=q[r+4],y=q[r+5],z=q[r+6];
-      if(!finite(pos)||!finite(q)) {reason='유효하지 않은 물리 상태';break;}
-      const time=this.data.time-start;
-      if(time>0.5&&(pos[2]<0.22 || 1-2*(x*x+y*y)<0.35)) {reason='넘어짐 감지';break;}
-      const yaw=Math.atan2(2*(w*z+x*y),1-2*(y*y+z*z));
-      const command=follower.command([pos[0],pos[1]],yaw);maxError=Math.max(maxError,command.error);
-      if(command.error>0.65 && time>1) {reason='경로 이탈';break;}
-      if(command.done && settledAt<0) {settledAt=time;distanceAtArrivalM=actualLength;}
-      if(!command.done)settledAt=-1;
-      if(settledAt>=0 && time-settledAt>=0.6) {completed=true;reason='도착';break;}
-      if(iterations%10===0) frames.push({time,qpos:Array.from(q)});
-      const policyCommand=navCommand(command.velocity);
-      sumFollowerVx+=command.velocity[0];sumPolicyVx+=policyCommand[0];commandSamples++;
-      this.step(await control.update(this.state(),policyCommand,networks));
-      const next=this.position(); actualLength+=Math.hypot(next[0]-previous[0],next[1]-previous[1]);previous=next;
-      if(iterations++%50===0) {onProgress(time,next);await yieldUi();}
-    }
-    const duration=this.data.time-start;frames.push({time:duration,qpos:Array.from(this.data.qpos)});
-    this.data.ctrl.fill(0);
-    const movingDurationS=settledAt>=0?settledAt:duration;
-    if(settledAt<0)distanceAtArrivalM=actualLength;
-    const achievedMeanXyMps=movingDurationS>0?distanceAtArrivalM/movingDurationS:0;
-    return {id:crypto.randomUUID(),route,scenarioId:this.scenario.id,frames,duration,movingDurationS,
-      settleDurationS:Math.max(0,duration-movingDurationS),completed,reason,actualLength,distanceAtArrivalM,achievedMeanXyMps,
-      meanFollowerVxMps:commandSamples?sumFollowerVx/commandSamples:0,meanPolicyVxCommand:commandSamples?sumPolicyVx/commandSamples:0,
-      plannedLength:length(this.scenario.routes[route]),maxError,inferences:control.inferenceCount,simulator:'MuJoCo WASM 3.13.0',profile:PROFILE.id};
+  async rollout(route:RouteKey,networks:Networks,signal:AbortSignal,onProgress:(time:number,pos:number[])=>void,options:RolloutOptions={}):Promise<Rollout> {
+    if(this.running)throw new Error('다른 경로가 실행 중입니다.');
+    this.running=true;
+    try {
+      // mj_resetData resets integration/solver state; a NEW controller resets
+      // history, previous action, gait phase and inference decimation per route.
+      this.reset();const initialQpos=Array.from(this.data.qpos) as number[],initialQvel=Array.from(this.data.qvel) as number[];
+      const control=new TerrainController();control.setMode('ready');
+      const yieldUi=()=>new Promise<void>(resolve=>setTimeout(resolve,0));
+      for(let i=0;!control.ready;i++) {
+        if(signal.aborted) throw new DOMException('실행을 취소했습니다.','AbortError');
+        this.step(await control.update(this.state(),[0,0,0],networks));
+        if(i%40===0) await yieldUi();
+      }
+      if(this.support>=0) setEqualityActive(this.mj,this.model,this.data,this.support,false);
+      control.setMode('policy');
+      const follower=new Follower(this.scenario.routes[route],this.scenario.speed);
+      const frames:Frame[]=[],start=this.data.time;
+      let previous=this.position(),actualLength=0,maxError=0,completed=false,reason='시간 초과',settledAt=-1;
+      let distanceAtArrivalM=0,commandSamples=0,sumFollowerVx=0,sumPolicyVx=0;
+      const maxTime=Math.min(100,length(this.scenario.routes[route])/this.scenario.speed*3+8);
+      let iterations=0;
+      while(this.data.time-start<maxTime) {
+        if(signal.aborted) throw new DOMException('실행을 취소했습니다.','AbortError');
+        const pos=this.position(),q=this.data.qpos,r=this.root,w=q[r+3],x=q[r+4],y=q[r+5],z=q[r+6];
+        if(!finite(pos)||!finite(q)) {reason='유효하지 않은 물리 상태';break;}
+        const time=this.data.time-start;
+        if(time>0.5&&(pos[2]<0.22 || 1-2*(x*x+y*y)<0.35)) {reason='넘어짐 감지';break;}
+        const yaw=Math.atan2(2*(w*z+x*y),1-2*(y*y+z*z));
+        const command=follower.command([pos[0],pos[1]],yaw);maxError=Math.max(maxError,command.error);
+        if(command.error>0.65 && time>1) {reason='경로 이탈';break;}
+        if(command.done && settledAt<0) {settledAt=time;distanceAtArrivalM=actualLength;}
+        if(!command.done)settledAt=-1;
+        if(settledAt>=0 && time-settledAt>=0.6) {completed=true;reason='도착';break;}
+        if(iterations%10===0) {
+          const frame={time,qpos:Array.from(q) as number[]};frames.push(frame);
+          // Await before continuing physics: do NOT let async inference or the
+          // rendering frame rate change the 500 Hz / 100 Hz simulation schedule.
+          if(options.onFrame)await options.onFrame(frame);
+        }
+        const policyCommand=navCommand(command.velocity);
+        sumFollowerVx+=command.velocity[0];sumPolicyVx+=policyCommand[0];commandSamples++;
+        this.step(await control.update(this.state(),policyCommand,networks));
+        const next=this.position(); actualLength+=Math.hypot(next[0]-previous[0],next[1]-previous[1]);previous=next;
+        if(iterations++%50===0) {onProgress(time,next);if(!options.onFrame)await yieldUi();}
+      }
+      const duration=this.data.time-start,finalFrame={time:duration,qpos:Array.from(this.data.qpos) as number[]};frames.push(finalFrame);
+      if(options.onFrame)await options.onFrame(finalFrame);
+      const movingDurationS=settledAt>=0?settledAt:duration;
+      if(settledAt<0)distanceAtArrivalM=actualLength;
+      const achievedMeanXyMps=movingDurationS>0?distanceAtArrivalM/movingDurationS:0;
+      return {id:crypto.randomUUID(),route,scenarioId:this.scenario.id,frames,duration,movingDurationS,
+        settleDurationS:Math.max(0,duration-movingDurationS),completed,reason,actualLength,distanceAtArrivalM,achievedMeanXyMps,
+        meanFollowerVxMps:commandSamples?sumFollowerVx/commandSamples:0,meanPolicyVxCommand:commandSamples?sumPolicyVx/commandSamples:0,
+        plannedLength:length(this.scenario.routes[route]),maxError,inferences:control.inferenceCount,simulator:'MuJoCo WASM 3.13.0',profile:PROFILE.id,
+        runtimeId:this.runtimeId,resetVersion:'full-data-controller-v1',initialQpos,initialQvel,executionMode:options.onFrame?'live-fixed-step':'offline-fixed-step'};
+    } finally {this.data.ctrl.fill(0);this.running=false;}
   }
-  dispose() {if(this.disposed)return;this.disposed=true;this.data.delete();this.model.delete();this.vfs.delete();}
+  dispose() {if(this.disposed)return;if(this.running)throw new Error('먼저 보행 실행을 취소하세요.');this.disposed=true;this.data.delete();this.model.delete();this.vfs.delete();}
 }
