@@ -6,15 +6,14 @@ import type { Scenario, RouteKey } from '../core/scenario.ts';
 import type { Physics } from './physics.ts';
 
 export type CameraPreset='overview'|'step'|'top'|'follow';
-export const CAMERA_PROTOCOL='rear-oblique-world-heading-v1';
+export const CAMERA_PROTOCOL='rear-oblique-world-heading-30fps-v1';
 export class Viewer {
   renderer:T.WebGLRenderer;scene=new T.Scene();camera=new T.PerspectiveCamera(42,1,0.01,150);
   controls:OrbitControls;world=new T.Group();robot=new T.Group();robotMeshes:{id:number;mesh:T.Mesh}[]=[];
   engine:Physics|undefined;animation=0;observer:ResizeObserver;canvas:HTMLCanvasElement;selected:RouteKey|undefined;
   aKey:RouteKey='direct';onFrame:(time:number)=>void=()=>{};
-  private following=false;private fixedView=false;private lastCameraWall=0;
+  private following=false;private fixedView=false;private lastCameraWall=0;private lastRender=0;private worldKey='';
   private focus=new T.Vector3(0,0,0);
-  // Direction is tied to the Start->Goal axis, NOT noisy base yaw/roll/pitch.
   private offset=new T.Vector3(-2.8,-2.1,1.75);
   private ahead=new T.Vector3(1.1,0,0.43);
   constructor(canvas:HTMLCanvasElement) {
@@ -29,8 +28,10 @@ export class Viewer {
     this.scene.add(this.world,this.robot);this.setCamera('overview');
     this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(canvas.parentElement!);this.resize();
     const frame=(time:number)=>{
-      this.animation=requestAnimationFrame(frame);this.onFrame(time);this.followCamera(time);
-      this.controls.update();this.renderer.render(this.scene,this.camera);
+      this.animation=requestAnimationFrame(frame);this.onFrame(time);
+      // Rendering cadence is independent of 500 Hz physics / 100 Hz inference.
+      if(document.hidden||time-this.lastRender<1000/30)return;
+      this.lastRender=time;this.followCamera(time);this.controls.update();this.renderer.render(this.scene,this.camera);
     };
     this.animation=requestAnimationFrame(frame);
   }
@@ -44,35 +45,44 @@ export class Viewer {
   }
   private startGoalMarkers(){
     const add=(geometry:T.BufferGeometry,color:number,x:number,z:number,name:string)=>{
-      const marker=new T.Mesh(geometry,new T.MeshBasicMaterial({color,side:T.DoubleSide}));
-      marker.position.set(x,0,z);marker.name=name;this.world.add(marker);
+      const marker=new T.Mesh(geometry,new T.MeshBasicMaterial({color,side:T.DoubleSide}));marker.position.set(x,0,z);marker.name=name;this.world.add(marker);
     };
-    // Both use circles as requested; filled disc vs concentric target distinguishes
-    // them even without red/green discrimination. All lie in the XY ground plane.
     add(new T.CircleGeometry(.21,48),0x168d4d,0,.009,'start-green-disc');
     add(new T.RingGeometry(.215,.24,48),0x244536,0,.010,'start-border');
     add(new T.RingGeometry(.14,.23,48),0xce3449,6,.009,'goal-red-target');
     add(new T.CircleGeometry(.065,32),0xce3449,6,.010,'goal-centre');
     add(new T.RingGeometry(.235,.25,48),0x59232d,6,.011,'goal-border');
   }
+  private emphasizePaths(){
+    for(const object of this.world.children){
+      const key=object.userData.routeKey as RouteKey|undefined;if(!key)continue;
+      const active=!this.selected||this.selected===key;
+      if(object instanceof T.Line)(object.material as T.LineBasicMaterial).opacity=active?1:.22;
+      else if(object instanceof T.Mesh)(object.material as T.MeshBasicMaterial).opacity=active?.85:.18;
+    }
+  }
   setScenario(s:Scenario,selected?:RouteKey){
-    this.selected=selected;this.clear(this.world);
+    this.selected=selected;
+    const key=`${s.id}:${this.aKey}`;
+    // Changing A/B emphasis must not dispose/recompile geometry and shaders.
+    if(key===this.worldKey){this.emphasizePaths();return;}
+    this.clear(this.world);this.worldKey=key;
     const floor=new T.Mesh(new T.PlaneGeometry(28,22),new T.MeshStandardMaterial({color:'#e7edf0',roughness:1}));floor.position.set(3,0,-.004);this.world.add(floor);
     const grid=new T.GridHelper(24,24,0xa4b7c0,0xcad6dc);grid.rotation.x=Math.PI/2;grid.position.set(3,0,0);this.world.add(grid);
     if(s.height>0){
       const box=new T.Mesh(new T.BoxGeometry(s.depth,s.width,s.height),new T.MeshStandardMaterial({color:'#738d9b',roughness:.82}));box.position.set(3,0,s.height/2);this.world.add(box);
       const edges=new T.LineSegments(new T.EdgesGeometry(box.geometry),new T.LineBasicMaterial({color:'#334e5e'}));edges.position.copy(box.position);this.world.add(edges);
     }
-    for(const key of ['direct','detour'] as const){
-      const color=key===this.aKey?0x087d79:0xcc6640,active=!selected||selected===key;
-      const points=s.routes[key].map(p=>new T.Vector3(p[0],p[1],.02));
-      this.world.add(new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color,transparent:true,opacity:active?1:.22})));
-      for(const p of sampleRoute(s.routes[key],.12)){
-        const marker=new T.Mesh(new T.SphereGeometry(.026,8,6),new T.MeshBasicMaterial({color,transparent:true,opacity:active?.85:.18}));marker.position.set(p[0],p[1],.02);this.world.add(marker);
+    for(const route of ['direct','detour'] as const){
+      const color=route===this.aKey?0x087d79:0xcc6640;
+      const points=s.routes[route].map(p=>new T.Vector3(p[0],p[1],.02));
+      const line=new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color,transparent:true}));line.userData.routeKey=route;this.world.add(line);
+      for(const p of sampleRoute(s.routes[route],.12)){
+        const marker=new T.Mesh(new T.SphereGeometry(.026,8,6),new T.MeshBasicMaterial({color,transparent:true}));marker.position.set(p[0],p[1],.02);marker.userData.routeKey=route;this.world.add(marker);
       }
     }
-    this.startGoalMarkers();
-    // Deliberately no Sprite/canvas labels: no cm, START, GOAL or path lengths.
+    this.startGoalMarkers();this.emphasizePaths();
+    // No Sprite/canvas text labels: no cm, START, GOAL or path lengths.
   }
   setParticipantView(enabled:boolean){this.fixedView=enabled;this.controls.enabled=!enabled;this.controls.enableDamping=!enabled;if(enabled)this.setCamera('follow');}
   resetFollow(pos:number[]=[0,0,0]){
@@ -104,7 +114,7 @@ export class Viewer {
       else if(type===6)geometry=new T.BoxGeometry(size[0]*2,size[1]*2,size[2]*2);
       else if(type===5){geometry=new T.CylinderGeometry(size[0],size[0],size[1]*2,24);geometry.rotateX(Math.PI/2);}
       else if(type===3){geometry=new T.CapsuleGeometry(size[0],size[1]*2,6,16);geometry.rotateX(Math.PI/2);}
-      else {geometry=new T.SphereGeometry(type===4?1:size[0],24,16);if(type===4)geometry.scale(size[0],size[1],size[2]);}
+      else{geometry=new T.SphereGeometry(type===4?1:size[0],24,16);if(type===4)geometry.scale(size[0],size[1],size[2]);}
       const rgba=Array.from(m.geom_rgba.slice(id*4,id*4+4)) as number[];
       const mesh=new T.Mesh(geometry,new T.MeshStandardMaterial({color:new T.Color(rgba[0],rgba[1],rgba[2]),roughness:.65,metalness:.12,side:T.DoubleSide}));
       mesh.matrixAutoUpdate=false;this.robot.add(mesh);this.robotMeshes.push({id,mesh});
