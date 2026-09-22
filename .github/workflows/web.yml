@@ -51,14 +51,22 @@ jobs:
           npx playwright install --with-deps chromium
           if ! command -v ffmpeg >/dev/null; then sudo apt-get update && sudo apt-get install -y ffmpeg; fi
       - name: Restore exact-input introduction media
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         id: intro-cache
         with:
           path: public/media/rubi-intro-v1
-          key: rubi-intro-v1-${{ runner.os }}-${{ hashFiles('package-lock.json', 'tools/build-intro-media.mjs', 'src/core/**', 'src/runtime/**', 'public/models/rubi-web/**') }}
+          key: rubi-intro-v2-${{ runner.os }}-${{ hashFiles('package-lock.json', 'tools/build-intro-media.mjs', 'src/core/**', 'src/runtime/**', 'public/models/rubi-web/**') }}
       - name: Generate introduction from actual survey WASM policy
         if: steps.intro-cache.outputs.cache-hit != 'true'
         run: node tools/build-intro-media.mjs
+      - name: Create and validate VP9 compatibility encoding
+        run: node tools/encode-intro-compatible.mjs
+      - name: Cache successfully generated introduction
+        if: steps.intro-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: public/media/rubi-intro-v1
+          key: ${{ steps.intro-cache.outputs.cache-primary-key }}
       - name: Preserve introduction media diagnostics
         run: |
           mkdir -p artifacts/intro-build
