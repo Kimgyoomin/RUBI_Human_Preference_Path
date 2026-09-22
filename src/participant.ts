@@ -29,7 +29,7 @@ $('app').innerHTML=`
 <section id="g-welcome" class="g-panel">
 <p class="g-eyebrow">로봇의 이동 경로에 대한 설문</p><h1 tabindex="-1">로봇이 어느 길로 가면 좋을까요?</h1>
 <p>로봇이 서로 다른 두 길로 이동하는 모습을 보고, 더 마음에 드는 길을 골라 주세요. 로봇에 대해 잘 몰라도 참여할 수 있습니다.</p>
-<p>총 16문항입니다. 이름이나 이메일은 묻지 않습니다. 고른 답, 화면을 본 시간, 로봇의 움직임, 시작 전 질문의 답변을 함께 저장합니다.</p>
+<p>총 <span id="g-total">16</span>문항입니다. 이름이나 이메일은 묻지 않습니다. 고른 답, 화면을 본 시간, 로봇의 움직임, 시작 전 질문의 답변을 함께 저장합니다.</p>
 <label class="g-consent"><input id="g-consent" type="checkbox"> 안내를 읽었으며 답변 저장에 동의합니다.</label>
 <button id="g-start" class="g-primary" disabled>시작 전 질문으로</button><p id="g-resume" class="g-muted"></p>
 <button id="g-reset-welcome" class="g-secondary" hidden>처음부터 다시 시작</button>
@@ -186,10 +186,8 @@ async function observe(key:RouteKey){
       run=cached;
       for(const frame of run.frames){if(finishRequested)break;await present(frame,true);}
     }else{
-      // After an early end, finish physics without displaying the unseen tail.
-      // This keeps successful-arrival validation; it does not count as viewing.
-      run=await engine.rollout(key,networks,signal,()=>{}, {onFrame:frame=>present(frame,false)});
-      runs[key]=run;
+      // Finish unseen physics after voluntary early end; never count it as watched.
+      run=await engine.rollout(key,networks,signal,()=>{}, {onFrame:frame=>present(frame,false)});runs[key]=run;
     }
     event.earlyFinish=finishRequested;
     if(lastFrame&&finishRequested){engine.applyFrame(lastFrame);viewer.updateRobot();}
@@ -230,8 +228,7 @@ async function choose(choice:RouteKey|'tie'){
   selecting=true;updateChoices();clearError();const clickedAt=performance.now();
   const duringReplay=running&&reviewing;
   try{
-    // Wait for a cancelled replay to finish its cleanup before changing trial.
-    // Never allow stale callbacks to reset the following question or submit twice.
+    // Cancel and await replay cleanup before replacing any trial state.
     abort?.abort();await observationTask;
     const payload={schemaVersion:1,consent:true,submissionId:crypto.randomUUID(),participantId:state.participantId,sessionId:state.id,
       experimentId:study.id,studyStatus:study.status,protocolVersion:UX_PROTOCOL,trialId:`guided-v5-${state.index}-${scenario.id}`,
@@ -240,7 +237,7 @@ async function choose(choice:RouteKey|'tie'){
       previewCoverage:{direct:coverage.direct.fraction(runs.direct!.duration),detour:coverage.detour.fraction(runs.detour!.duration)},
       viewTime:{...viewTime},replays:{...replays},previewEvents:previewEvents.map(e=>({...e})),
       decisionMs:Math.max(0,clickedAt-decisionStart),elapsedTrialMs:clickedAt-trialStart,trialOrder:state.order,
-      labelConditionVersion:UX_LABEL_CONDITION,observationPolicy:OBSERVATION_POLICY,choiceDuringReplay:duringReplay,
+      labelConditionVersion:UX_LABEL_CONDITION,observationPolicy:OBSERVATION_POLICY,choiceDuringReplay:duringReplay,queryReason:'fixed_pilot_core_view',
       repeatIndex:state.repeatIndex??0,previousSessionId:state.previousSessionId??null,
       cameraProtocol:CAMERA_PROTOCOL,controllerVersion:'cosine-follower-v2',tutorialVersion:'plain-instructions-v2',tutorialCompleted:true,
       consentVersion:'consent-v1',sessionStartedAtUtc:state.startedAt,profileTiming:'before_simulation',
@@ -252,7 +249,6 @@ async function choose(choice:RouteKey|'tie'){
 }
 async function sendPending(){
   if(!state.pending)return;btn('g-save-retry').hidden=true;clearError();
-  $('g-save-status').textContent='保存されると次の質問に進みます。';
   $('g-save-status').textContent='저장되면 다음 문항으로 넘어갑니다.';
   try{
     if(!collector)await connect();
@@ -276,7 +272,7 @@ async function finalize(){
       profileSchemaVersion:'pre-profile-plain-v2',roboticsRelatedExperience:p.roboticsRelatedExperience,knewRubiBeforeStudy:p.knewRubiBeforeStudy,
       rubiExposureBeforeStudy:p.rubiExposureBeforeStudy,profileCompletedAtUtc:new Date().toISOString(),profileAnsweredAtUtc:p.answeredAtUtc,
       groupingRuleVersion:'cohort-v1'},30000);
-    if(reply.kind!=='profile'||reply.submissionId!==state.id)throw new Error('開始前の回答を保存できませんでした。');
+    if(reply.kind!=='profile'||reply.submissionId!==state.id)throw new Error('시작 전 질문의 답변을 저장하지 못했습니다. 다시 시도해 주세요.');
     state.complete=true;save();show('complete');
   }catch(e){fail(e);btn('g-save-retry').hidden=false;}finally{finalizing=false;}
 }
@@ -293,7 +289,7 @@ function restart(){
     runs={};seen.clear();reviewing=false;clearError();
     $<HTMLInputElement>('g-consent').checked=false;btn('g-start').disabled=true;
     $<HTMLFormElement>('g-profile-form').reset();$('g-resume').textContent='새 참여로 시작합니다. 앞서 저장한 답변은 그대로 보관됩니다.';
-    btn('g-reset-welcome').hidden=true;viewer&&(viewer.robot.visible=false);show('welcome');
+    btn('g-reset-welcome').hidden=true;if(viewer)viewer.robot.visible=false;show('welcome');
   }catch(e){fail(e);}
 }
 btn('g-restart').onclick=restart;btn('g-reset-welcome').onclick=restart;
@@ -313,8 +309,6 @@ btn('g-load-retry').onclick=()=>void prepare();btn('g-watch').onclick=()=>startO
 btn('g-stop').onclick=()=>abort?.abort();
 btn('g-enough').onclick=()=>{
   if(!running||btn('g-enough').disabled)return;finishRequested=true;btn('g-enough').disabled=true;
-  $('g-action-hint').textContent='残りの経路を確認しています。';
-  $('g-action-hint').textContent='残り';
   $('g-action-hint').textContent='로봇이 도착할 수 있는지 확인하고 있어요. 잠시만 기다려 주세요.';
 };
 btn('g-replay-a').onclick=()=>startObservation(aKey,true);btn('g-replay-b').onclick=()=>startObservation(bKey,true);
@@ -326,7 +320,7 @@ async function bootstrap(){
     scenes=study.guidedScenarios??study.scenarios;
     if(!scenes.length||!['draft','released'].includes(study.status))throw new Error('설문 설정을 확인해 주세요.');
     scenes.forEach(s=>{makeScenario(s.height,s.detour,s.speed);if(s.speed!==.5)throw new Error('참가자용 속도 설정이 다릅니다. 연구자에게 알려 주세요.');});
-    $('g-pilot-note').hidden=study.status!=='draft';
+    $('g-total').textContent=String(scenes.length);$('g-pilot-note').hidden=study.status!=='draft';
     let restored:Session|undefined;try{restored=JSON.parse(localStorage.getItem(storageKey())??'null')??undefined;}catch{}
     const valid=restored&&restored.order.length===scenes.length&&new Set(restored.order).size===scenes.length&&restored.order.every(i=>Number.isInteger(i)&&i>=0&&i<scenes.length)&&restored.presentations.length===scenes.length&&restored.presentations.every(k=>k==='direct'||k==='detour')&&Number.isInteger(restored.index)&&restored.index>=0&&restored.index<=scenes.length;
     const participantKey='RUBI_Human_Preference_Path:rubi-hpp-participant';
