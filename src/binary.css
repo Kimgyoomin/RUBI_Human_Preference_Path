@@ -1,0 +1,8 @@
+.g-intro-video{display:block;width:100%;aspect-ratio:16/9;max-height:440px;background:#e7edf0;border:1px solid #cedde4;border-radius:12px;object-fit:contain;margin:16px 0 8px}
+.g-intro-chapters{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.g-intro-chapters button{font-size:13px;padding:7px 10px;min-height:40px}
+#g-intro h2{margin-top:28px}#g-intro .g-muted{font-size:13px;margin-bottom:18px}
+.g-choices.g-binary-choices{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.g-binary-choices button{white-space:pre-line;line-height:1.7;min-height:88px;padding:13px 10px;word-break:keep-all;overflow-wrap:anywhere;font-size:15px}
+.g-binary-choices #g-choose-a{border-top:4px solid #087d79}.g-binary-choices #g-choose-b{border-top:4px solid #cc6640}
+.g-skip{margin-top:20px;border-top:1px solid #dde6eb;padding-top:14px;font-size:13px;color:#536d79}.g-skip summary{cursor:pointer}.g-skip p{margin:10px 0}.g-skip button{font-size:13px;width:100%}
+@media(max-width:640px){.g-binary-choices button{font-size:14px;min-height:86px}.g-intro-chapters button{font-size:12px}.g-intro-video{border-radius:8px}.g-steps span{padding-inline:4px}}
