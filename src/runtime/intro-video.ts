@@ -2,15 +2,15 @@ import '../binary.css';
 import {validateIntro} from '../core/binary-study.ts';
 import type {IntroManifest} from '../core/binary-study.ts';
 
-/** Self-confirmed familiarization, not a claim of measured attention or 100% viewing. */
+/** Self-confirmed familiarization, not measured attention or full viewing. */
 export class IntroVideo{
   manifest:IntroManifest|undefined;started=false;
   private video:HTMLVideoElement;private acknowledged:HTMLInputElement;private next:HTMLButtonElement;private status:HTMLElement;private loadToken=0;
-  constructor(privateRoot:HTMLElement){
-    this.video=privateRoot.querySelector<HTMLVideoElement>('#g-intro-video')!;
-    this.acknowledged=privateRoot.querySelector<HTMLInputElement>('#g-intro-ack')!;
-    this.next=privateRoot.querySelector<HTMLButtonElement>('#g-begin')!;
-    this.status=privateRoot.querySelector<HTMLElement>('#g-intro-status')!;
+  constructor(root:HTMLElement){
+    this.video=root.querySelector<HTMLVideoElement>('#g-intro-video')!;
+    this.acknowledged=root.querySelector<HTMLInputElement>('#g-intro-ack')!;
+    this.next=root.querySelector<HTMLButtonElement>('#g-begin')!;
+    this.status=root.querySelector<HTMLElement>('#g-intro-status')!;
     this.video.addEventListener('playing',()=>{this.started=true;this.acknowledged.disabled=false;this.status.textContent='평지 걷기, 네 높이의 턱 통과, 돌아가는 모습을 차례로 보여드립니다.';this.update();});
     this.video.addEventListener('error',()=>{this.started=false;this.acknowledged.disabled=true;this.next.disabled=true;this.status.textContent='소개 영상을 재생하지 못했습니다. 아래에서 다시 불러와 주세요.';});
     this.video.addEventListener('ratechange',()=>{if(this.video.playbackRate!==1)this.video.playbackRate=1;});
@@ -27,7 +27,12 @@ export class IntroVideo{
     if(!r.ok)throw new Error('소개 영상이 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.');
     const m=validateIntro(await r.json());if(token!==this.loadToken)return;
     this.manifest=m;
-    const media=new URL(m.video,url);media.searchParams.set('v',m.videoSha256.slice(0,16));
+    const h264=this.video.canPlayType('video/mp4; codecs="avc1.64001f"');
+    const vp9=this.video.canPlayType('video/webm; codecs="vp9"');
+    const useWebm=!h264&&Boolean(m.webm)&&Boolean(vp9);
+    if(!h264&&!useWebm)throw new Error('이 브라우저에서 소개 영상을 재생할 수 없습니다. 최신 Chrome 또는 Safari에서 열어 주세요.');
+    const media=new URL(useWebm?m.webm!.file:m.video,url);
+    media.searchParams.set('v',(useWebm?m.webm!.sha256:m.videoSha256).slice(0,16));
     this.video.src=media.href;this.video.poster=new URL(m.poster,url).href;this.video.playbackRate=1;this.video.load();
     const chapters=document.querySelector<HTMLElement>('#g-intro-chapters')!;chapters.replaceChildren();
     for(const e of m.episodes){
