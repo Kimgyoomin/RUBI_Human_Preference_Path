@@ -17,13 +17,14 @@ export function routeChoice(scene:{height:number;detour:number},route:RouteKey,l
   };
 }
 export type IntroEpisode={id:string;title:string;startSeconds:number;mediaDurationSeconds:number;height:number;route:RouteKey;run:{completed:boolean;duration:number}};
-export type IntroManifest={version:string;contentId:string;simulationOnly:boolean;nominalNavigationCommand:number;physicsDt:number;policyDt:number;fps:number;video:string;poster:string;videoSha256:string;durationSeconds:number;assetHashes:Record<string,string>;episodes:IntroEpisode[]};
+export type IntroManifest={version:string;contentId:string;simulationOnly:boolean;nominalNavigationCommand:number;physicsDt:number;policyDt:number;fps:number;video:string;poster:string;videoSha256:string;durationSeconds:number;assetHashes:Record<string,string>;episodes:IntroEpisode[];webm?:{file:string;sha256:string;bytes:number;codec:string;durationSeconds:number}};
 export function validateIntro(value:unknown):IntroManifest{
   if(!value||typeof value!=='object')throw new Error('소개 영상 정보를 불러오지 못했습니다.');
   const m=value as IntroManifest;
   if(m.version!==INTRO_VERSION||m.simulationOnly!==true||!/^[a-f0-9]{64}$/.test(m.contentId)||!/^[a-f0-9]{64}$/.test(m.videoSha256))throw new Error('소개 영상 버전이 맞지 않습니다.');
   if(m.nominalNavigationCommand!==.5||m.physicsDt!==.002||m.policyDt!==.01)throw new Error('소개 영상의 제어 조건이 다릅니다.');
   if(m.video!=='rubi-intro.mp4'||m.poster!=='poster.jpg'||!Number.isFinite(m.durationSeconds)||m.durationSeconds<=0)throw new Error('소개 영상 파일이 올바르지 않습니다.');
+  if(m.webm&&(m.webm.file!=='rubi-intro.webm'||m.webm.codec!=='vp9'||!/^[a-f0-9]{64}$/.test(m.webm.sha256)||!Number.isFinite(m.webm.durationSeconds)||Math.abs(m.webm.durationSeconds-m.durationSeconds)>.15))throw new Error('소개 영상의 호환 파일이 올바르지 않습니다.');
   if(!m.assetHashes||!['encoder.onnx','policy.onnx','rubi.xml'].every(k=>/^[a-f0-9]{64}$/.test(m.assetHashes[k]??'')))throw new Error('소개 영상의 모델 정보가 없습니다.');
   if(!Array.isArray(m.episodes)||m.episodes.length!==6)throw new Error('소개 영상의 예시 구성이 다릅니다.');
   const expected=[['flat',0,'direct'],['step-05',.05,'direct'],['step-07',.07,'direct'],['step-09',.09,'direct'],['step-11',.11,'direct'],['bypass',.07,'detour']];
@@ -36,6 +37,5 @@ export function assertIntroAssets(m:IntroManifest,hashes:Record<string,string>):
   const keys=Object.keys(hashes);
   if(keys.length!==Object.keys(m.assetHashes).length||keys.some(k=>hashes[k]!==m.assetHashes[k]))throw new Error('소개 영상과 현재 로봇 모델·제어기가 다릅니다. 연구자에게 알려 주세요.');
 }
-// The current collector already persists tutorialVersion. Include the exact
-// content ID there, not just in an extra JSON key that the collector discards.
+// Exact content identity goes in a column the deployed collector persists.
 export const introRecordVersion=(m:IntroManifest)=>`${m.version}:${m.contentId}`;
