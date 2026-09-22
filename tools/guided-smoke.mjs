@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {writeFile} from 'node:fs/promises';
-export {guidedChecks} from './review-ux-checks.mjs';
+export {guidedChecks} from './block-ux-checks.mjs';
 
 export async function residentChecks(browser){
   const p=await browser.newPage();
@@ -44,6 +44,15 @@ export async function residentChecks(browser){
       assert.ok(r.detour.completed,`detour ${r.height*100}cm failed: ${r.detour.reason}`);
       if(r.repeatError!==null)assert.ok(r.repeatError<1e-7,`reset replay diverged: ${r.repeatError}`);
     }
-    console.log('RESIDENT_HEIGHTS_PASS',JSON.stringify(result));return result;
+    const candidates=await p.evaluate(async()=>{
+      const {fetchHostedBundle}=await import('/src/runtime/bundle-loader.ts');const {OnnxNetworks}=await import('/src/runtime/onnx.ts');const {Physics}=await import('/src/runtime/physics.ts');const {makeScenario}=await import('/src/core/scenario.ts');
+      const {bundle}=await fetchHostedBundle(new URL('/models/rubi-web/',location.href),()=>{}),networks=await OnnxNetworks.create(bundle.files),engine=await Physics.create(bundle,makeScenario(.05,.4,.5)),report=[];
+      try{for(const h of [.05,.07,.09,.11])for(const d of [.4,.6,.8,1,1.2,1.4,1.6]){
+        engine.setScenario(makeScenario(h,d,.5));const r=await engine.rollout('detour',networks,new AbortController().signal,()=>{});report.push({h,d,completed:r.completed,reason:r.reason,duration:r.duration});
+      }}finally{engine.dispose();await networks.dispose();}return report;
+    });
+    for(const r of candidates)assert.ok(r.completed,`candidate detour failed: ${JSON.stringify(r)}`);
+    await writeFile('artifacts/block-candidates.json',JSON.stringify(candidates,null,2));
+    console.log('RESIDENT_HEIGHTS_PASS',JSON.stringify(result));console.log('BLOCK_CANDIDATES_PASS',JSON.stringify(candidates));return {...result,candidates};
   }finally{await p.close();}
 }
