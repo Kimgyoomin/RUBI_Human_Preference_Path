@@ -124,7 +124,7 @@ function nextTrial(){
   trialStart=performance.now();decisionStart=0;reviewing=false;selecting=false;const skip=document.querySelector<HTMLDetailsElement>('.g-skip');if(skip)skip.open=false;readyPath(aKey);
 }
 async function connect(){
-  if(!study.responseApi)throw new Error('答えを保存できません。');
+  if(!study.responseApi)throw new Error('답변을 저장할 곳에 연결하지 못했습니다. 연구자에게 알려 주세요.');
   collector?.dispose();collector=new AppsScriptTransport(study.responseApi);const reply=await collector.ping(study.id,study.status);
   if(reply.service!=='rubi-hpp'||reply.experimentId!==study.id||reply.studyStatus!==study.status)throw new Error('설문과 저장 서비스의 설정이 다릅니다. 연구자에게 알려 주세요.');
   $('g-storage-status').textContent='답변 저장 연결됨';
