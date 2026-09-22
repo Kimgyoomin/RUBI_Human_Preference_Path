@@ -51,7 +51,7 @@ export function nextBlockQuestion(plan:BlockPlan,answers:BlockAnswer[]):BlockQue
   const prefix:BlockAnswer[]=[],ids=new Set<string>();
   for(const answer of answers){
     const q=at(plan,prefix)!;
-    if(!answer.submissionId||ids.has(answer.submissionId)||answer.trialSequence!==q.sequence||!['direct','detour','skip'].includes(answer.choice)||Math.abs(answer.scenario.height-q.heightCm/100)>1e-9||Math.abs(answer.scenario.detour-q.detourMm/1000)>1e-9)throw new Error('저장된 질문 순서와 답변이 맞지 않습니다. 연구자에게 알려 주세요.');
+    if(!answer.submissionId||ids.has(answer.submissionId)||answer.trialSequence!==q.sequence||!['direct','detour','skip'].includes(answer.choice)||!Number.isFinite(answer.scenario.height)||!Number.isFinite(answer.scenario.detour)||Math.abs(answer.scenario.height-q.heightCm/100)>1e-9||Math.abs(answer.scenario.detour-q.detourMm/1000)>1e-9)throw new Error('저장된 질문 순서와 답변이 맞지 않습니다. 연구자에게 알려 주세요.');
     ids.add(answer.submissionId);prefix.push(answer);
   }
   return at(plan,prefix);
