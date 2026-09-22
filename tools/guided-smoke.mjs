@@ -48,62 +48,59 @@ export async function residentChecks(browser){
 }
 
 export async function guidedChecks(browser){
-  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],writes=[];
+  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[],writes=[],timings=[];
   page.on('pageerror',e=>errors.push(e.message));
   const study=JSON.parse(await readFile('public/study.json','utf8'));
   study.guidedScenarios=[{height:.05,detour:.4,speed:.5},{height:.07,detour:.8,speed:.5}];
   await page.route('**/study.json',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(study)}));
-  // TEST TRANSPORT ONLY: intercept all collector requests, never append to the
-  // actual private Sheet from CI. Researcher smoke still verifies the real ping.
+  // TEST TRANSPORT ONLY: no real Sheets writes. Researcher smoke verifies real ping.
   await page.route('https://script.google.com/macros/s/**/exec',async route=>{
     const request=JSON.parse(new URLSearchParams(route.request().postData()||'').get('payload')||'{}');
-    const payload=request.payload||{};
-    if(request.kind!=='ping')writes.push(request);
-    const reply={source:'rubi-hpp-apps-script',requestId:request.requestId,ok:true,kind:request.kind,service:'rubi-hpp',experimentId:study.id,studyStatus:study.status,
-      submissionId:request.kind==='profile'?payload.sessionId:payload.submissionId};
+    const payload=request.payload||{};if(request.kind!=='ping')writes.push(request);
+    const reply={source:'rubi-hpp-apps-script',requestId:request.requestId,ok:true,kind:request.kind,service:'rubi-hpp',experimentId:study.id,studyStatus:study.status,submissionId:request.kind==='profile'?payload.sessionId:payload.submissionId};
     await route.fulfill({contentType:'text/html',body:`<!doctype html><script>top.postMessage(${JSON.stringify(reply)},'http://127.0.0.1:4177');</script>`});
   });
   try{
     await page.goto('http://127.0.0.1:4177/',{waitUntil:'networkidle'});
     await page.waitForFunction(()=>window.__rubiGuidedTest?.().phase==='welcome');
-    assert.equal(await page.locator('#g-world').isVisible(),false);
-    assert.equal(await page.locator('#generate').count(),0);
+    assert.equal(await page.locator('#g-world').isVisible(),false);assert.equal(await page.locator('#generate').count(),0);
     await page.screenshot({path:'artifacts/guided-welcome.png',fullPage:true});
     await page.locator('#g-consent').check();await page.locator('#g-start').click();
     await page.locator('#g-robotics').selectOption('no');await page.locator('#g-knew').selectOption('yes');await page.locator('#g-exposure').selectOption('video_only');
-    assert.equal((await page.evaluate(()=>window.__rubiGuidedTest())).modelCreateCount,0,'model must not be shown before background questions');
-    await page.screenshot({path:'artifacts/guided-profile.png',fullPage:true});
-    await page.locator('#g-profile-next').click();await page.locator('#g-begin').click();
+    assert.equal((await page.evaluate(()=>window.__rubiGuidedTest())).modelCreateCount,0);
+    await page.screenshot({path:'artifacts/guided-profile.png',fullPage:true});await page.locator('#g-profile-next').click();
+    // Software WebGL in CI is not a participant GPU. Use an actual supported
+    // laptop viewport for live timing; retain larger static layout screenshots.
+    await page.setViewportSize({width:1024,height:768});await page.locator('#g-begin').click();
     await page.waitForFunction(()=>window.__rubiGuidedTest?.().phase==='observe',null,{timeout:120000});
     const initial=await page.evaluate(()=>window.__rubiGuidedTest());
     assert.equal(initial.modelCreateCount,1);assert.equal(initial.onnxCreateCount,1);assert.equal(initial.spriteCount,0);
-    assert.ok(initial.markerNames.includes('start-green-disc'));assert.ok(initial.markerNames.includes('goal-red-target'));
-    assert.ok(initial.camera[0]<initial.target[0]);
-    assert.equal(await page.locator('.g-viewport').innerText(),'');
-    const runs=[];
+    assert.ok(initial.markerNames.includes('start-green-disc'));assert.ok(initial.markerNames.includes('goal-red-target'));assert.ok(initial.camera[0]<initial.target[0]);
+    assert.equal(await page.locator('.g-viewport').innerText(),'');const runs=[];
     for(let trial=0;trial<2;trial++){
       for(let route=0;route<2;route++){
         let completed=false;
         for(let attempt=0;attempt<3;attempt++){
           const previousSeen=(await page.evaluate(()=>window.__rubiGuidedTest())).seen.length;
           await page.locator('#g-watch').click();
+          // Screenshotting a live software-rendered frame can itself stall
+          // presentation. Timing gates must remain active and require replay.
           if(trial===0&&route===0&&attempt===0){await page.waitForTimeout(3300);await page.screenshot({path:'artifacts/guided-live.png',fullPage:true});}
           await page.waitForFunction(()=>window.__rubiGuidedTest?.().phase==='choice'||(!document.querySelector('#g-watch').hidden&&!document.querySelector('#g-watch').disabled),null,{timeout:120000});
           const snapshot=await page.evaluate(()=>window.__rubiGuidedTest());
+          const metric={trial,route,attempt,phase:snapshot.phase,seen:snapshot.seen,runs:Object.fromEntries(Object.entries(snapshot.runs).map(([k,r])=>[k,{completed:r.completed,duration:r.duration,visibleWallMs:r.visibleWallMs,rtf:r.realTimeFactor,gap:r.maxDisplayGapMs,display:r.displayMode}]))};
+          timings.push(metric);console.log('GUIDED_TIMING',JSON.stringify(metric));
           if(snapshot.phase==='choice'||snapshot.seen.length>previousSeen){completed=true;break;}
           assert.ok(Object.values(snapshot.runs).every(r=>r.completed),'live route failed');
         }
         assert.ok(completed,'live/replay observation did not pass timing gate');
       }
-      await page.waitForFunction(()=>window.__rubiGuidedTest?.().phase==='choice');
-      const snapshot=await page.evaluate(()=>window.__rubiGuidedTest());
+      await page.waitForFunction(()=>window.__rubiGuidedTest?.().phase==='choice');const snapshot=await page.evaluate(()=>window.__rubiGuidedTest());
       assert.equal(snapshot.modelCreateCount,1);assert.equal(snapshot.onnxCreateCount,1);assert.equal(snapshot.runtimeId,initial.runtimeId);
-      assert.deepEqual(snapshot.runs.direct.initialQpos,snapshot.runs.detour.initialQpos);
-      assert.deepEqual(snapshot.runs.direct.initialQvel,snapshot.runs.detour.initialQvel);
+      assert.deepEqual(snapshot.runs.direct.initialQpos,snapshot.runs.detour.initialQpos);assert.deepEqual(snapshot.runs.direct.initialQvel,snapshot.runs.detour.initialQvel);
       runs.push({height:snapshot.scenario.height,direct:snapshot.runs.direct.duration,detour:snapshot.runs.detour.duration});
-      if(trial===0){await page.screenshot({path:'artifacts/guided-choice.png',fullPage:true});await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/guided-choice-mobile.png',fullPage:true});await page.setViewportSize({width:1440,height:1000});}
-      await page.locator('#g-tie').click();
-      await page.waitForFunction(t=>window.__rubiGuidedTest?.().index>t,trial,{timeout:30000});
+      if(trial===0){await page.screenshot({path:'artifacts/guided-choice.png',fullPage:true});await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/guided-choice-mobile.png',fullPage:true});await page.setViewportSize({width:1024,height:768});}
+      await page.locator('#g-tie').click();await page.waitForFunction(t=>window.__rubiGuidedTest?.().index>t,trial,{timeout:30000});
       if(trial===0)await page.waitForFunction(()=>window.__rubiGuidedTest?.().phase==='observe');
     }
     await page.waitForFunction(()=>window.__rubiGuidedTest?.().phase==='complete',null,{timeout:30000});
@@ -114,8 +111,8 @@ export async function guidedChecks(browser){
       assert.ok(Date.parse(request.payload.profileAnsweredAtUtc)<=Date.parse(request.payload.createdAt));
     }
     assert.deepEqual(errors,[]);
-    const report={status:'PASS',collector:'mock intercepted; no real Sheets writes',realPolicy:true,runtimeId:initial.runtimeId,modelCreateCount:1,onnxCreateCount:1,runs,trialSubmissions:2,profileSubmissions:1};
+    const report={status:'PASS',collector:'mock intercepted; no real Sheets writes',realPolicy:true,runtimeId:initial.runtimeId,modelCreateCount:1,onnxCreateCount:1,runs,trialSubmissions:2,profileSubmissions:1,timings};
     await writeFile('artifacts/guided-smoke.json',JSON.stringify(report,null,2));console.log('GUIDED_UI_PASS',JSON.stringify(report));return report;
-  }catch(e){await page.screenshot({path:'artifacts/guided-failure.png',fullPage:true}).catch(()=>{});console.log('GUIDED_FAILURE',JSON.stringify(await page.evaluate(()=>({error:document.querySelector('#g-error')?.textContent,phase:window.__rubiGuidedTest?.().phase,watch:document.querySelector('#g-watch-status')?.textContent,hint:document.querySelector('#g-action-hint')?.textContent})).catch(()=>({}))));throw e;}
+  }catch(e){await page.screenshot({path:'artifacts/guided-failure.png',fullPage:true}).catch(()=>{});await writeFile('artifacts/guided-timing-failure.json',JSON.stringify(timings,null,2));console.log('GUIDED_FAILURE',JSON.stringify(await page.evaluate(()=>({error:document.querySelector('#g-error')?.textContent,phase:window.__rubiGuidedTest?.().phase,watch:document.querySelector('#g-watch-status')?.textContent,hint:document.querySelector('#g-action-hint')?.textContent})).catch(()=>({}))));throw e;}
   finally{await page.close();}
 }
