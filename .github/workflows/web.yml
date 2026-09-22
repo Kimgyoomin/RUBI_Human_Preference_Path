@@ -16,7 +16,7 @@ permissions:
 
 concurrency:
   group: rubi-web-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -41,6 +41,8 @@ jobs:
           tar -czf artifacts/source-snapshot.tar.gz src tools tests apps-script docs public/study.json package.json package-lock.json tsconfig.json vite.config.ts index.html
       - name: Test controller, hosted assets, survey and response API
         run: npm test
+      - name: Check TypeScript before rendering media
+        run: npx tsc --noEmit
       - name: Validate assets (missing files allowed for draft only)
         run: python3 tools/check_assets.py
       - name: Prepare Chromium and film encoder
@@ -48,8 +50,21 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.56.0
           npx playwright install --with-deps chromium
           if ! command -v ffmpeg >/dev/null; then sudo apt-get update && sudo apt-get install -y ffmpeg; fi
+      - name: Restore exact-input introduction media
+        uses: actions/cache@v4
+        id: intro-cache
+        with:
+          path: public/media/rubi-intro-v1
+          key: rubi-intro-v1-${{ runner.os }}-${{ hashFiles('package-lock.json', 'tools/build-intro-media.mjs', 'src/core/**', 'src/runtime/**', 'public/models/rubi-web/**') }}
       - name: Generate introduction from actual survey WASM policy
+        if: steps.intro-cache.outputs.cache-hit != 'true'
         run: node tools/build-intro-media.mjs
+      - name: Preserve introduction media diagnostics
+        run: |
+          mkdir -p artifacts/intro-build
+          cp public/media/rubi-intro-v1/rubi-intro.mp4 artifacts/rubi-intro.mp4
+          cp public/media/rubi-intro-v1/poster.jpg artifacts/rubi-intro-poster.jpg
+          cp public/media/rubi-intro-v1/manifest.json artifacts/intro-build/report.json
       - name: Build for the standalone Pages path
         run: npm run build
         env:
