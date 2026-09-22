@@ -1,3 +1,4 @@
+import '../binary.css';
 import {validateIntro} from '../core/binary-study.ts';
 import type {IntroManifest} from '../core/binary-study.ts';
 
