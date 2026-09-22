@@ -27,6 +27,13 @@ try{
   browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-angle=swiftshader','--enable-webgl']});
   page=await browser.newPage({viewport:{width:1440,height:1000}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  // CI never sends test participant records to the owner's real Sheet.
+  await page.route('https://script.google.com/macros/s/**/exec',async route=>{
+    const request=JSON.parse(new URLSearchParams(route.request().postData()||'').get('payload')||'{}');
+    if(request.kind!=='ping')throw new Error('Unexpected collector write in researcher smoke');
+    const reply={source:'rubi-hpp-apps-script',requestId:request.requestId,ok:true,kind:'ping',service:'rubi-hpp',experimentId:request.payload.experimentId,studyStatus:request.payload.studyStatus};
+    await route.fulfill({contentType:'text/html',body:`<script>top.postMessage(${JSON.stringify(reply)},'http://127.0.0.1:4177');</script>`});
+  });
   await page.goto('http://127.0.0.1:4177/?mode=research',{waitUntil:'networkidle'});
   await page.locator('#world').waitFor();assert.ok(await page.locator('#world').isVisible());
   await page.waitForFunction(()=>document.querySelector('#api-status')?.textContent?.includes('중앙 저장 연결 확인'),null,{timeout:30000});
