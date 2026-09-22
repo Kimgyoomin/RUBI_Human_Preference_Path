@@ -6,6 +6,7 @@ export type AppsScriptReply = {
   submissionId?: string;
   duplicate?: boolean;
   service?: string;
+  collectorVersion?: string;
   experimentId?: string;
   studyStatus?: string;
   message?: string;
@@ -48,7 +49,7 @@ export class AppsScriptTransport {
         let trusted=false;
         try {
           const host=new URL(event.origin).hostname;
-          trusted=event.origin.startsWith('https://')&&(host==='script.google.com'||host==='script.googleusercontent.com'||host.endsWith('.googleusercontent.com'));
+          trusted=event.origin.startsWith('https:')&&(host==='script.google.com'||host==='script.googleusercontent.com'||host.endsWith('.googleusercontent.com'));
         } catch {}
         if(!trusted)return;
         const data=event.data as AppsScriptReply|undefined;
