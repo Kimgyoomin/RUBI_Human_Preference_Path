@@ -2,10 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
-import {buildReleaseCollector} from '../tools/build-release-collector.mjs';
-import {mockCollector} from './fixtures/collector-mock.mjs';
-import {createBlockPlan,nextBlockQuestion,BLOCK_PROTOCOL,BLOCK_RULE,CANDIDATE_SET,BLOCK_LABEL_CONDITION} from '../src/core/height-block-study.ts';
-
+import {createBlockPlan,nextBlockQuestion,BLOCK_PROTOCOL} from '../src/core/height-block-study.ts';
 import {MAIN_ID,MAIN_SHEET,releaseMock,mainPayload} from './fixtures/release-mock.mjs';
 const plan=createBlockPlan(33455718), first=mainPayload(nextBlockQuestion(plan,[]),plan);
 test('main intake defaults closed; ping confirms only capability, not data or file IDs',()=>{
@@ -23,10 +20,10 @@ test('pilot and main are pinned to different files; client-supplied destinations
 });
 test('unauthenticated web requests cannot open, export, delete or select administration actions',()=>{
  const m=releaseMock({properties:{}});
- for(const kind of ['openMainCollection','pauseMainCollection','export','delete','inspectMainCollection'])assert.throws(()=>m.call(kind,{experimentId:MAIN_ID,studyStatus:'released'}));
+ for(const kind of ['openMainCollection_','pauseMainCollection_','export','delete','inspectMainCollection_'])assert.throws(()=>m.call(kind,{experimentId:MAIN_ID,studyStatus:'released'}));
  assert.equal(m.writes,0);assert.equal(m.properties.size,0);
- vm.runInContext('openMainCollection()',m.context);assert.equal(m.properties.get('RUBI_MAIN_COLLECTION_OPEN'),'true');
- vm.runInContext('pauseMainCollection()',m.context);assert.equal(m.properties.get('RUBI_MAIN_COLLECTION_OPEN'),'false');
+ vm.runInContext('openMainCollection_()',m.context);assert.equal(m.properties.get('RUBI_MAIN_COLLECTION_OPEN'),'true');
+ vm.runInContext('pauseMainCollection_()',m.context);assert.equal(m.properties.get('RUBI_MAIN_COLLECTION_OPEN'),'false');
 });
 test('main rejects modified study, skipped sequence, forged history, policy and route length before writing',()=>{
  const invalid=[{expectedTrials:4},{protocolVersion:'old'},{isPractice:true},{consent:false},{scenario:{height:.13,detour:.4,speed:.5}},
@@ -59,4 +56,10 @@ test('new main configuration does not silently activate or overwrite current pil
  const pilot=JSON.parse(fs.readFileSync('public/study.json','utf8')),main=JSON.parse(fs.readFileSync('config/study.main.json','utf8'));
  assert.equal(pilot.status,'draft');assert.notEqual(pilot.id,main.id);assert.equal(main.id,MAIN_ID);assert.equal(main.requiredReleaseVersion,'isolated-main-collector-v8');
  assert.deepEqual(main.heightBlocks,pilot.heightBlocks);assert.deepEqual(main.introduction,pilot.introduction);
+});
+test('only doGet and doPost are exposed as public Apps Script RPC functions',()=>{
+ const m=releaseMock({properties:{}});
+ const exposed=Object.keys(m.context).filter(k=>typeof m.context[k]==='function'&&!k.endsWith('_')).sort();
+ assert.deepEqual(exposed,['doGet','doPost']);
+ assert.equal(typeof m.context.openMainCollection,'undefined');
 });
