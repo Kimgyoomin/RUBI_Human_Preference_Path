@@ -1,6 +1,6 @@
 /** Appended to the tested v7 collector by tools/build-release-collector.mjs.
  * Main dataset is pinned by the deployer, never selected by a client file ID.
- * Owner-only functions below are NOT routes of doGet/doPost.
+ * Owner-only helpers end in underscore: neither doPost routes nor google.script.run RPC targets.
  */
 const RELEASE = Object.freeze({
   VERSION: 'isolated-main-collector-v8',
@@ -83,21 +83,21 @@ function validateMainTrial_(p){
     if(old.status==='completed'&&!own.some(r=>r.submissionId===p.submissionId))throw new Error('이미 완료된 참여입니다.');
   }
 }
-// Run these functions only from the owner's Apps Script editor.
-function inspectMainCollection(){
+// Trailing underscore prevents google.script.run exposure. Run from the owner's editor only.
+function inspectMainCollection_(){
   const ss=mainSchema_();
   const result={experimentId:RELEASE.MAIN_EXPERIMENT,sheetId:RELEASE.MAIN_SHEET,open:mainOpen_(),
     trialRows:records_(sheet_(ss,'Trials')).length,runRows:records_(sheet_(ss,'Runs')).length,sessionRows:records_(sheet_(ss,'Sessions')).length};
   console.log(JSON.stringify(result));return result;
 }
-function openMainCollection(){
+function openMainCollection_(){
   const ss=mainSchema_();
   if(RELEASE.MAIN_SHEET===CONFIG.SPREADSHEET_ID)throw new Error('본 조사와 파일럿 저장소가 같습니다.');
   for(const name of ['Trials','Runs','Sessions'])if(records_(sheet_(ss,name)).some(r=>r.experimentId!==RELEASE.MAIN_EXPERIMENT))throw new Error('본 조사 외의 기록이 있습니다.');
   PropertiesService.getScriptProperties().setProperty(RELEASE.OPEN_PROPERTY,'true');
-  return inspectMainCollection();
+  return inspectMainCollection_();
 }
-function pauseMainCollection(){
+function pauseMainCollection_(){
   PropertiesService.getScriptProperties().setProperty(RELEASE.OPEN_PROPERTY,'false');
-  return inspectMainCollection();
+  return inspectMainCollection_();
 }
