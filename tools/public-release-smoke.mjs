@@ -13,14 +13,25 @@ assert.ok(!(await readdir('dist')).some(n=>['api','apps-script','src','config'].
 const assetPaths=[];
 async function scan(dir){for(const name of await readdir(dir,{withFileTypes:true})){const p=dir+'/'+name.name;if(name.isDirectory())await scan(p);else assetPaths.push(p);}}
 await scan('dist');assert.ok(!assetPaths.some(p=>p.endsWith('.map')),'no source maps in public artifact');
-const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host','127.0.0.1','--port','4190','--strictPort'],{stdio:'inherit'});
+// Preview must use the same base as GITHUB_PAGES=true at build time.
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host','127.0.0.1','--port','4190','--strictPort'],{stdio:'inherit',env:{...process.env,GITHUB_PAGES:'true'}});
 let browser;
+const diagnostics=[];
+function instrument(page,label){
+ const record={label,url:'',errors:[],failed:[]};diagnostics.push(record);
+ page.on('pageerror',e=>record.errors.push(e.message));
+ page.on('requestfailed',r=>record.failed.push({url:r.url(),error:r.failure()?.errorText}));
+ page.on('framenavigated',f=>{if(f===page.mainFrame())record.url=f.url();});
+}
 try{
  for(let i=0;i<100;i++){try{if((await fetch(base)).ok)break;}catch{}await new Promise(r=>setTimeout(r,150));}
+ const configResponse=await fetch(base+'study.json');
+ assert.ok(configResponse.ok);assert.match(configResponse.headers.get('content-type')||'',/json/,'preview must serve the production base path');
+ assert.equal((await configResponse.json()).id,JSON.parse(await readFile('dist/study.json','utf8')).id);
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-angle=swiftshader','--enable-webgl']});
  const attempts=['','?mode=research','?mode=research&admin=true','?mode=%72esearch','#research'];
  for(const path of attempts){
-   const p=await browser.newPage();
+   const p=await browser.newPage();instrument(p,'boundary '+path);
    await p.addInitScript(()=>{localStorage.setItem('admin','true');localStorage.setItem('mode','research');});
    // No production or pilot writes are allowed from this test.
    await p.route('https://script.google.com/macros/s/**/exec',r=>r.abort());
@@ -30,7 +41,7 @@ try{
    if(path==='?mode=research')await p.screenshot({path:'artifacts/public-research-blocked.png',fullPage:true});
    await p.close();
  }
- const closed=await browser.newPage();const closedServer=releaseMock({properties:{}});
+ const closed=await browser.newPage();instrument(closed,'main closed');const closedServer=releaseMock({properties:{}});
  await closed.route('**/study.json',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(main)}));
  async function routeCollector(page,m,writes){
    await page.route('https://script.google.com/macros/s/**/exec',async route=>{
@@ -47,6 +58,7 @@ try{
  assert.equal(await closed.locator('#g-consent').count(),0);assert.equal(closedWrites.length,0);assert.equal(closedServer.writes,0);
  await closed.screenshot({path:'artifacts/main-collection-closed.png',fullPage:true});await closed.close();
  const page=await browser.newPage({viewport:{width:1440,height:900}});const errors=[],writes=[];page.on('pageerror',e=>errors.push(e.message));
+ instrument(page,'main open actual policy');
  const m=releaseMock();await page.route('**/study.json',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(main)}));await routeCollector(page,m,writes);
  await page.goto(base,{waitUntil:'networkidle'});await page.locator('#g-welcome').waitFor({state:'visible'});
  assert.equal(await page.locator('#g-research').count(),0);assert.equal(await page.locator('#g-pilot-note').isVisible(),false);
@@ -82,4 +94,12 @@ try{
  await writeFile('artifacts/public-release-checks.json',JSON.stringify({status:'PASS',pathsChecked:attempts,buildBoundary:boundary,
    assetCount:assetPaths.length,sourceMaps:0,collector:'generated release collector with in-memory Google services; NO real Sheets writes',closedGate:true,productionRealPolicyTrial:true,trialRows:1,runRows:2,sessionRows:1},null,2));
  console.log('PUBLIC_RELEASE_CHECKS_PASS');
+}catch(error){
+ const livePages=browser?.contexts().flatMap(c=>c.pages())||[];
+ for(let i=0;i<livePages.length;i++){
+   const p=livePages[i];await p.screenshot({path:`artifacts/public-failure-${i}.png`,fullPage:true}).catch(()=>{});
+   diagnostics.push({label:'failure state',url:p.url(),body:await p.locator('body').innerText().catch(()=>''),html:await p.locator('#app').innerHTML().catch(()=>'')});
+ }
+ await writeFile('artifacts/public-release-failure.json',JSON.stringify({error:String(error),diagnostics},null,2));
+ console.error('PUBLIC_RELEASE_FAILURE',JSON.stringify({error:String(error),diagnostics}));throw error;
 }finally{await browser?.close();server.kill('SIGTERM');}
