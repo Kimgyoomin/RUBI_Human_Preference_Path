@@ -19,7 +19,7 @@ export function buildReleaseCollector(){
   const js=stripTypeScriptTypes(ts,{mode:'strip'}).replace(/^export\s+/gm,'');
   code+='\nconst releaseScheduler_ = (() => {\n'+js+'\nreturn {createBlockPlan,nextBlockQuestion};\n})();\n';
   code+=fs.readFileSync(path.join(ROOT,'apps-script/release/guard.gs'),'utf8');
-  return '// GENERATED: paste this ENTIRE file into the existing Apps Script Code.gs.\n// Main intake is CLOSED until owner runs openMainCollection(). Pilot routing is unchanged.\n'+code;
+  return '// GENERATED: paste this ENTIRE file into the existing Apps Script Code.gs.\n// Main intake is CLOSED until owner runs openMainCollection_(). Pilot routing is unchanged.\n'+code;
 }
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const output=process.argv[2]||'artifacts/RUBI_Collector_release_v8_Code.gs';
