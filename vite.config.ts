@@ -39,10 +39,29 @@ function binaries() {
   };
 }
 
+function publicBoundary() {
+  return {
+    name: 'participant-only-public-boundary',
+    apply: 'build' as const,
+    generateBundle(_options: unknown, bundle: Record<string, any>) {
+      const chunks = Object.values(bundle).filter((item: any) => item.type === 'chunk');
+      const modules: string[] = chunks.flatMap((chunk: any) => Object.keys(chunk.modules));
+      const researchModules = modules.filter(id => /\/src\/main\.ts(?:\?|$)/.test(id));
+      if (researchModules.length) throw new Error('Research UI must not be emitted in the public build.');
+      fs.mkdirSync('artifacts', {recursive:true});
+      fs.writeFileSync('artifacts/public-build-boundary.json', JSON.stringify({
+        sourceCommit: process.env.GITHUB_SHA ?? 'local-development',
+        researchModules, scriptFiles: chunks.map((chunk: any) => chunk.fileName),
+        participantOnly: true
+      }, null, 2));
+    }
+  };
+}
+
 export default defineConfig({
   base: process.env.GITHUB_PAGES === 'true' ? '/RUBI_Human_Preference_Path/' : './',
-  plugins: [binaries()],
+  plugins: [binaries(), publicBoundary()],
   optimizeDeps: { exclude: ['@mujoco/mujoco', 'onnxruntime-web'] },
-  build: { target: 'es2022', chunkSizeWarningLimit: 2000 },
+  build: { target: 'es2022', chunkSizeWarningLimit: 2000, sourcemap: false },
   server: { proxy: { '/api': 'http://127.0.0.1:8787' } },
 });

@@ -3,12 +3,12 @@ import vm from 'node:vm';
 import fs from 'node:fs';
 import {createHash} from 'node:crypto';
 export const HEADERS={
- Trials:'submissionId schemaVersion experimentId sessionId participantId trialId trialSequence isPractice heightM detourExtraM nominalSpeedMps routeGeometryVersion choice skipReason pathA pathB firstPreviewRoute labelConditionVersion directRolloutId detourRolloutId decisionMs elapsedTrialMs directCoverage detourCoverage adaptiveVersion candidateSetId queryReason adaptiveStateBeforeRef adaptiveStateAfterRef clientCreatedAtUtc serverReceivedAtUtc appCommit tutorialVersion consentVersion consentGranted payloadSha256'.split(' '),
+ Trials:'submissionId schemaVersion experimentId sessionId participantId trialId trialSequence isPractice heightM detourExtraM nominalSpeedMps routeGeometryVersion choice skipReason pathA pathB firstPreviewRoute labelConditionVersion directRolloutId detourRolloutId decisionMs elapsedTrialMs directCoverage detourCoverage adaptiveVersion candidateSetId queryReason adaptiveStateBeforeRef adaptiveStateAfterRef clientCreatedAtUtc serverReceivedAtUtc appCommit tutorialVersion consentVersion consentGranted payloadSha256 protocolVersion blockIndex trialInBlock blockOrderJson endpointOrder queryContextJson saveState'.split(' '),
  Runs:'rolloutId schemaVersion experimentId sessionId participantId scenarioId route heightM detourExtraM nominalSpeedMps followerMeanVxMps policyMeanVxCommand distanceXyM measurementDurationS achievedMeanXyMps bodyForwardMeanMps progressSpeedMeanMps settleDurationS completed reason plannedLengthM maxTrackingErrorM actualYawAbsRad plannedMaxCurvaturePerM plannedAbsCurvatureRad actualClearanceM geometryVersion policyProfile encoderSha256 policySha256 modelManifestSha256 simulatorVersion controllerVersion cacheHit sourceRolloutId computeMs trajectoryRef createdAtUtc'.split(' '),
- Sessions:'sessionId schemaVersion participantId experimentId protocolVersion tutorialVersion consentVersion consentGranted tutorialCompleted startedAtUtc endedAtUtc status browserFamily viewportWidth viewportHeight appCommit profileSchemaVersion roboticsRelatedExperience knewRubiBeforeStudy rubiExposureBeforeStudy profileCompleted profileCompletedAtUtc analysisGroup groupingRuleVersion'.split(' ')
+ Sessions:'sessionId schemaVersion participantId experimentId protocolVersion tutorialVersion consentVersion consentGranted tutorialCompleted startedAtUtc endedAtUtc status browserFamily viewportWidth viewportHeight appCommit profileSchemaVersion roboticsRelatedExperience knewRubiBeforeStudy rubiExposureBeforeStudy profileCompleted profileCompletedAtUtc analysisGroup groupingRuleVersion profileAnsweredAtUtc expectedTrials savedTrials questionPlanJson'.split(' ')
 };
 export function mockCollector(options={}){
- let writes=0,failed=false,held=false;const sheets={};
+ let writes=0,failed=false,held=false;const sheets={},openedIds=[];const properties=new Map(Object.entries(options.properties||{}));
  function write(fn){writes++;if(!failed&&options.failAt===writes&&options.when!=='after'){failed=true;throw Error('injected write failure');}fn();if(!failed&&options.failAt===writes&&options.when==='after'){failed=true;throw Error('injected write failure after commit');}}
  class Sheet{
   constructor(name){this.name=name;this.data=[[...HEADERS[name]]];this.maxRows=1000;this.maxCols=HEADERS[name].length;}
@@ -23,11 +23,12 @@ export function mockCollector(options={}){
  }
  for(const name of Object.keys(HEADERS))sheets[name]=new Sheet(name);
  if(options.checkboxDefaults)for(let i=1;i<1000;i++){sheets.Sessions.data[i]??=[];sheets.Sessions.data[i][20]=false;}
- const context=vm.createContext({console,SpreadsheetApp:{openById:()=>({getSheetByName:n=>sheets[n]}),flush:()=>write(()=>{})},
+ const context=vm.createContext({console,SpreadsheetApp:{openById:id=>{openedIds.push(id);if(options.targetId&&options.targetId!==id)throw Error('wrong spreadsheet target');return {getSheetByName:n=>sheets[n]};},flush:()=>write(()=>{})},
+  PropertiesService:{getScriptProperties:()=>({getProperty:k=>properties.get(k)??null,setProperty:(k,v)=>properties.set(k,v)})},
   LockService:{getScriptLock:()=>({tryLock:()=>{if(held)return false;held=true;return true;},releaseLock:()=>{held=false;}})},
   Utilities:{DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},computeDigest:(_,s)=>[...createHash('sha256').update(s).digest()]}});
- vm.runInContext(fs.readFileSync(new URL('../../apps-script/Code.gs',import.meta.url),'utf8'),context);
- const call=(kind,payload)=>{context.__request={kind,payload};return JSON.parse(JSON.stringify(vm.runInContext('handleRequest_(__request)',context)));};
+ vm.runInContext(options.source||fs.readFileSync(new URL('../../apps-script/Code.gs',import.meta.url),'utf8'),context);
+ const call=(kind,payload)=>{context.__request={kind,payload};return JSON.parse(JSON.stringify(vm.runInContext((options.handler||'handleRequest_')+'(__request)',context)));};
  const rows=name=>sheets[name].data.slice(1).filter(r=>r?.[0]).map(r=>Object.fromEntries(sheets[name].data[0].map((k,i)=>[k,r[i]??''])));
- return {call,rows,sheets,context,get writes(){return writes;},get held(){return held;}};
+ return {call,rows,sheets,context,properties,openedIds,get writes(){return writes;},get held(){return held;}};
 }

@@ -1,0 +1,81 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile,readdir} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {chromium} from 'playwright';
+import {releaseMock} from '../tests/fixtures/release-mock.mjs';
+
+const origin='http://127.0.0.1:4190';
+const base=origin+'/RUBI_Human_Preference_Path/';
+const main=JSON.parse(await readFile('config/study.main.json','utf8'));
+const boundary=JSON.parse(await readFile('artifacts/public-build-boundary.json','utf8'));
+assert.equal(boundary.participantOnly,true);assert.deepEqual(boundary.researchModules,[]);
+assert.ok(!(await readdir('dist')).some(n=>['api','apps-script','src','config'].includes(n)));
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host','127.0.0.1','--port','4190','--strictPort'],{stdio:'inherit'});
+let browser;
+try{
+ for(let i=0;i<100;i++){try{if((await fetch(base)).ok)break;}catch{}await new Promise(r=>setTimeout(r,150));}
+ browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-angle=swiftshader','--enable-webgl']});
+ const attempts=['','?mode=research','?mode=research&admin=true','?mode=%72esearch','#research'];
+ for(const path of attempts){
+   const p=await browser.newPage();
+   // No production or pilot writes are allowed from this test.
+   await p.route('https://script.google.com/macros/s/**/exec',r=>r.abort());
+   await p.goto(base+path,{waitUntil:'networkidle'});await p.locator('#g-welcome').waitFor({state:'visible'});
+   assert.equal(await p.locator('#g-research').count(),0);assert.equal(await p.locator('#generate').count(),0);
+   assert.equal(await p.locator('#studio-mode').count(),0);assert.equal(await p.evaluate(()=>typeof window.__rubiGuidedTest),'undefined');
+   if(path==='?mode=research')await p.screenshot({path:'artifacts/public-research-blocked.png',fullPage:true});
+   await p.close();
+ }
+ const closed=await browser.newPage();const closedServer=releaseMock({properties:{}});
+ await closed.route('**/study.json',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(main)}));
+ async function routeCollector(page,m,writes){
+   await page.route('https://script.google.com/macros/s/**/exec',async route=>{
+     const request=JSON.parse(new URLSearchParams(route.request().postData()||'').get('payload')||'{}');
+     if(request.kind!=='ping')writes.push(request);
+     let reply;
+     try{reply={source:'rubi-hpp-apps-script',requestId:request.requestId,ok:true,...m.call(request.kind,request.payload)};}
+     catch(e){reply={source:'rubi-hpp-apps-script',requestId:request.requestId,ok:false,message:String(e)};}
+     await route.fulfill({contentType:'text/html',body:`<script>top.postMessage(${JSON.stringify(reply)},'${origin}');</script>`});
+   });
+ }
+ const closedWrites=[];await routeCollector(closed,closedServer,closedWrites);
+ await closed.goto(base,{waitUntil:'networkidle'});await closed.getByText('지금은 설문을 받지 않고 있습니다.',{exact:false}).waitFor();
+ assert.equal(await closed.locator('#g-consent').count(),0);assert.equal(closedWrites.length,0);assert.equal(closedServer.writes,0);
+ await closed.screenshot({path:'artifacts/main-collection-closed.png',fullPage:true});await closed.close();
+ const page=await browser.newPage({viewport:{width:1440,height:900}});const errors=[],writes=[];page.on('pageerror',e=>errors.push(e.message));
+ const m=releaseMock();await page.route('**/study.json',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(main)}));await routeCollector(page,m,writes);
+ await page.goto(base,{waitUntil:'networkidle'});await page.locator('#g-welcome').waitFor({state:'visible'});
+ assert.equal(await page.locator('#g-research').count(),0);assert.equal(await page.locator('#g-pilot-note').isVisible(),false);
+ await page.locator('#g-consent').check();await page.locator('#g-start').click();
+ await page.locator('#g-robotics').selectOption('no');await page.locator('#g-knew').selectOption('no');await page.locator('#g-exposure').selectOption('none');await page.locator('#g-profile-next').click();
+ await page.waitForFunction(()=>document.querySelector('#g-intro-video').readyState>=2,null,{timeout:45000});
+ await page.locator('#g-intro-video').evaluate(async v=>{v.muted=true;await v.play();});
+ await page.waitForFunction(()=>document.querySelector('#g-intro-video').currentTime>.3);
+ await page.locator('#g-intro-video').evaluate(v=>v.pause());await page.locator('#g-intro-ack').check();await page.locator('#g-begin').click();
+ await page.locator('#g-observe').waitFor({state:'visible',timeout:120000});
+ // Observe A then B using actual production JS/physics, no DEV hooks.
+ for(const letter of ['A','B']){
+   for(let attempt=0;attempt<3;attempt++){
+     await page.locator('#g-watch').click();
+     await page.waitForFunction(()=>{
+       const e=document.querySelector('#g-enough'),w=document.querySelector('#g-watch'),s=document.querySelector('#g-stop');
+       return (e&&!e.hidden&&!e.disabled)||(w&&!w.hidden&&!w.disabled&&s?.hidden);
+     },null,{timeout:120000});
+     if(await page.locator('#g-enough').isVisible()&&await page.locator('#g-enough').isEnabled())await page.locator('#g-enough').click();
+     await page.waitForFunction(()=>document.querySelector('#g-stop').hidden,null,{timeout:120000});
+     if(await page.locator('#g-choice').isVisible())break;
+     if(letter==='A'&&(await page.locator('#g-watch').textContent()).includes('B'))break;
+   }
+ }
+ await page.locator('#g-choice').waitFor({state:'visible',timeout:30000});
+ await page.screenshot({path:'artifacts/main-choice-release.png',fullPage:true});
+ await page.locator('#g-choose-a').click();
+ await page.waitForFunction(()=>document.querySelector('#g-counter')?.textContent?.startsWith('2 /'),null,{timeout:30000});
+ assert.equal(writes.filter(r=>r.kind==='trial').length,1);assert.equal(m.rows('Trials').length,1);assert.equal(m.rows('Runs').length,2);
+ assert.equal(m.rows('Sessions')[0].profileCompleted,true);assert.equal(m.rows('Sessions')[0].status,'started');assert.equal(m.rows('Trials')[0].saveState,'complete');
+ assert.deepEqual(errors,[]);
+ await page.close();
+ await writeFile('artifacts/public-release-checks.json',JSON.stringify({status:'PASS',pathsChecked:attempts,buildBoundary:boundary,
+   collector:'generated release collector with in-memory Google services; NO real Sheets writes',closedGate:true,productionRealPolicyTrial:true,trialRows:1,runRows:2,sessionRows:1},null,2));
+ console.log('PUBLIC_RELEASE_CHECKS_PASS');
+}finally{await browser?.close();server.kill('SIGTERM');}
