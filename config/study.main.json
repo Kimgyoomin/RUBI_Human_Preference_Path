@@ -1,0 +1,27 @@
+{
+  "id": "rubi-hpp-main-v1",
+  "status": "released",
+  "responseTransport": "apps-script",
+  "responseApi": "https://script.google.com/macros/s/AKfycbzkk-mfGemkhbChiP7ldNRfIUYLNJTVzVh40JtScTIYSG2qP6QpWh9rtFHsOKfSvnTnWw/exec",
+  "bundleBaseUrl": "./models/rubi-web/",
+  "protocolVersion": "height-blocks-binary-v7",
+  "profileSchemaVersion": "pre-profile-plain-v2",
+  "groupingRuleVersion": "cohort-v1",
+  "tutorialVersion": "same-policy-intro-v1",
+  "consentVersion": "consent-v1",
+  "guidedProtocolVersion": "height-blocks-binary-v7",
+  "guidedSelectionMethod": "height_block_endpoint_midpoint_recheck",
+  "responseMode": "binary_with_information_skip",
+  "requiredCollectorVersion": "repairable-block-collector-v7",
+  "heightBlocks": {"version":"endpoint-midpoint-recheck-v1","heightsCm":[5,7,9,11],"detoursMm":[400,600,800,1000,1200,1400,1600],"questionsPerHeight":4},
+  "introduction": {"version":"same-policy-intro-v1","manifestUrl":"./media/rubi-intro-v1/manifest.json","acknowledgement":"self_report"},
+  "guidedScenarios": [
+    {"height":0.05,"detour":0.4,"speed":0.5},{"height":0.05,"detour":0.8,"speed":0.5},{"height":0.05,"detour":1.2,"speed":0.5},{"height":0.05,"detour":1.6,"speed":0.5},
+    {"height":0.07,"detour":0.4,"speed":0.5},{"height":0.07,"detour":0.8,"speed":0.5},{"height":0.07,"detour":1.2,"speed":0.5},{"height":0.07,"detour":1.6,"speed":0.5},
+    {"height":0.09,"detour":0.4,"speed":0.5},{"height":0.09,"detour":0.8,"speed":0.5},{"height":0.09,"detour":1.2,"speed":0.5},{"height":0.09,"detour":1.6,"speed":0.5},
+    {"height":0.11,"detour":0.4,"speed":0.5},{"height":0.11,"detour":0.8,"speed":0.5},{"height":0.11,"detour":1.2,"speed":0.5},{"height":0.11,"detour":1.6,"speed":0.5}
+  ],
+  "scenarios":[{"height":0.05,"detour":0.4,"speed":0.5},{"height":0.05,"detour":0.8,"speed":0.5},{"height":0.05,"detour":1.2,"speed":0.5},{"height":0.05,"detour":1.6,"speed":0.5}],
+  "requiredReleaseVersion":"isolated-main-collector-v8",
+  "datasetTag":"main-v1"
+}
