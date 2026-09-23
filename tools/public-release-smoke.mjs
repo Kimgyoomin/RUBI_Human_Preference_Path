@@ -4,7 +4,7 @@ import {spawn} from 'node:child_process';
 import {chromium} from 'playwright';
 import {releaseMock} from '../tests/fixtures/release-mock.mjs';
 
-const origin='http://127.0.0.1:4190';
+const origin='http://127.0.0.1:4173';
 const base=origin+'/RUBI_Human_Preference_Path/';
 const main=JSON.parse(await readFile('config/study.main.json','utf8'));
 const boundary=JSON.parse(await readFile('artifacts/public-build-boundary.json','utf8'));
@@ -14,7 +14,8 @@ const assetPaths=[];
 async function scan(dir){for(const name of await readdir(dir,{withFileTypes:true})){const p=dir+'/'+name.name;if(name.isDirectory())await scan(p);else assetPaths.push(p);}}
 await scan('dist');assert.ok(!assetPaths.some(p=>p.endsWith('.map')),'no source maps in public artifact');
 // Preview must use the same base as GITHUB_PAGES=true at build time.
-const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host','127.0.0.1','--port','4190','--strictPort'],{stdio:'inherit',env:{...process.env,GITHUB_PAGES:'true'}});
+// 4173 is Vite's standard preview port; never use Fetch-blocked protocol ports.
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host','127.0.0.1','--port','4173','--strictPort'],{stdio:'inherit',env:{...process.env,GITHUB_PAGES:'true'}});
 let browser;
 const diagnostics=[];
 function instrument(page,label){
