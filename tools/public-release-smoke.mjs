@@ -10,6 +10,9 @@ const main=JSON.parse(await readFile('config/study.main.json','utf8'));
 const boundary=JSON.parse(await readFile('artifacts/public-build-boundary.json','utf8'));
 assert.equal(boundary.participantOnly,true);assert.deepEqual(boundary.researchModules,[]);
 assert.ok(!(await readdir('dist')).some(n=>['api','apps-script','src','config'].includes(n)));
+const assetPaths=[];
+async function scan(dir){for(const name of await readdir(dir,{withFileTypes:true})){const p=dir+'/'+name.name;if(name.isDirectory())await scan(p);else assetPaths.push(p);}}
+await scan('dist');assert.ok(!assetPaths.some(p=>p.endsWith('.map')),'no source maps in public artifact');
 const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host','127.0.0.1','--port','4190','--strictPort'],{stdio:'inherit'});
 let browser;
 try{
@@ -18,6 +21,7 @@ try{
  const attempts=['','?mode=research','?mode=research&admin=true','?mode=%72esearch','#research'];
  for(const path of attempts){
    const p=await browser.newPage();
+   await p.addInitScript(()=>{localStorage.setItem('admin','true');localStorage.setItem('mode','research');});
    // No production or pilot writes are allowed from this test.
    await p.route('https://script.google.com/macros/s/**/exec',r=>r.abort());
    await p.goto(base+path,{waitUntil:'networkidle'});await p.locator('#g-welcome').waitFor({state:'visible'});
@@ -76,6 +80,6 @@ try{
  assert.deepEqual(errors,[]);
  await page.close();
  await writeFile('artifacts/public-release-checks.json',JSON.stringify({status:'PASS',pathsChecked:attempts,buildBoundary:boundary,
-   collector:'generated release collector with in-memory Google services; NO real Sheets writes',closedGate:true,productionRealPolicyTrial:true,trialRows:1,runRows:2,sessionRows:1},null,2));
+   assetCount:assetPaths.length,sourceMaps:0,collector:'generated release collector with in-memory Google services; NO real Sheets writes',closedGate:true,productionRealPolicyTrial:true,trialRows:1,runRows:2,sessionRows:1},null,2));
  console.log('PUBLIC_RELEASE_CHECKS_PASS');
 }finally{await browser?.close();server.kill('SIGTERM');}
