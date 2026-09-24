@@ -1,3 +1,5 @@
+# Owner reported updated Apps Script deployment (library version 4).
+# Repeat connection checks only; do not open collection or submit responses.
 name: Prelaunch read-only live audit
 
 on:
