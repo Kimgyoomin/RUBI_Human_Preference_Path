@@ -27,6 +27,11 @@ try{
   browser=await chromium.launch({headless:true,args:['--no-sandbox','--use-angle=swiftshader','--enable-webgl']});
   page=await browser.newPage({viewport:{width:1440,height:1000}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  // This is the DEV-only researcher regression. A released study auto-selects
+  // participant mode, so use the preserved pilot fixture for researcher exports.
+  // public-release-smoke.mjs separately tests the actual production main config.
+  const pilotFixture=await readFile('config/study.pilot.json','utf8');
+  await page.route('**/study.json',r=>r.fulfill({contentType:'application/json',body:pilotFixture}));
   // CI never sends test participant records to the owner's real Sheet.
   await page.route('https://script.google.com/macros/s/**/exec',async route=>{
     const request=JSON.parse(new URLSearchParams(route.request().postData()||'').get('payload')||'{}');
