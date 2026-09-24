@@ -6,7 +6,8 @@ import {releaseMock} from '../tests/fixtures/release-mock.mjs';
 
 const origin='http://127.0.0.1:4173';
 const base=origin+'/RUBI_Human_Preference_Path/';
-const main=JSON.parse(await readFile('config/study.main.json','utf8'));
+const main=JSON.parse(await readFile('public/study.json','utf8'));
+assert.equal(main.id,'rubi-hpp-main-v1');assert.equal(main.status,'released');assert.equal(main.collectionPhase,'owner-ui-check-v1');
 const boundary=JSON.parse(await readFile('artifacts/public-build-boundary.json','utf8'));
 assert.equal(boundary.participantOnly,true);assert.deepEqual(boundary.researchModules,[]);
 assert.ok(!(await readdir('dist')).some(n=>['api','apps-script','src','config'].includes(n)));
@@ -35,7 +36,7 @@ try{
    const p=await browser.newPage();instrument(p,'boundary '+path);
    await p.addInitScript(()=>{localStorage.setItem('admin','true');localStorage.setItem('mode','research');});
    // No production or pilot writes are allowed from this test.
-   await p.route('https://script.google.com/macros/s/**/exec',r=>r.abort());
+   await routeCollector(p,releaseMock(),[]);
    await p.goto(base+path,{waitUntil:'networkidle'});await p.locator('#g-welcome').waitFor({state:'visible'});
    assert.equal(await p.locator('#g-research').count(),0);assert.equal(await p.locator('#generate').count(),0);
    assert.equal(await p.locator('#studio-mode').count(),0);assert.equal(await p.evaluate(()=>typeof window.__rubiGuidedTest),'undefined');
@@ -43,7 +44,7 @@ try{
    await p.close();
  }
  const closed=await browser.newPage();instrument(closed,'main closed');const closedServer=releaseMock({properties:{}});
- await closed.route('**/study.json',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(main)}));
+ // Use the actual built study.json; mock only the Google transport/service.
  async function routeCollector(page,m,writes){
    await page.route('https://script.google.com/macros/s/**/exec',async route=>{
      const request=JSON.parse(new URLSearchParams(route.request().postData()||'').get('payload')||'{}');
@@ -60,9 +61,13 @@ try{
  await closed.screenshot({path:'artifacts/main-collection-closed.png',fullPage:true});await closed.close();
  const page=await browser.newPage({viewport:{width:1440,height:900}});const errors=[],writes=[];page.on('pageerror',e=>errors.push(e.message));
  instrument(page,'main open actual policy');
- const m=releaseMock();await page.route('**/study.json',r=>r.fulfill({contentType:'application/json',body:JSON.stringify(main)}));await routeCollector(page,m,writes);
+ const m=releaseMock();await routeCollector(page,m,writes);
  await page.goto(base,{waitUntil:'networkidle'});await page.locator('#g-welcome').waitFor({state:'visible'});
  assert.equal(await page.locator('#g-research').count(),0);assert.equal(await page.locator('#g-pilot-note').isVisible(),false);
+ assert.equal(await page.locator('#g-ui-check-note').isVisible(),true);
+ const uiId=(await page.locator('#g-ui-check-id').textContent()).replace('점검 ID: ','');
+ assert.match(uiId,/^ui-check-[0-9a-f-]{36}$/);
+ await page.screenshot({path:'artifacts/owner-ui-check-welcome.png',fullPage:true});
  await page.locator('#g-consent').check();await page.locator('#g-start').click();
  await page.locator('#g-robotics').selectOption('no');await page.locator('#g-knew').selectOption('no');await page.locator('#g-exposure').selectOption('none');await page.locator('#g-profile-next').click();
  await page.waitForFunction(()=>document.querySelector('#g-intro-video').readyState>=2,null,{timeout:45000});
@@ -90,10 +95,20 @@ try{
  await page.waitForFunction(()=>document.querySelector('#g-counter')?.textContent?.startsWith('2 /'),null,{timeout:30000});
  assert.equal(writes.filter(r=>r.kind==='trial').length,1);assert.equal(m.rows('Trials').length,1);assert.equal(m.rows('Runs').length,2);
  assert.equal(m.rows('Sessions')[0].profileCompleted,true);assert.equal(m.rows('Sessions')[0].status,'started');assert.equal(m.rows('Trials')[0].saveState,'complete');
+ for(const tab of ['Trials','Runs','Sessions'])assert.ok(m.rows(tab).every(r=>r.sessionId===uiId));
+ // Reload of a closed intake never sends more answers, even from a started test session.
+ m.properties.set('RUBI_MAIN_COLLECTION_OPEN','false');
+ await page.reload({waitUntil:'networkidle'});await page.getByText('지금은 설문을 받지 않고 있습니다.',{exact:false}).waitFor();
+ assert.equal(await page.locator('#g-consent').count(),0);assert.equal(m.rows('Trials').length,1);
+ m.properties.set('RUBI_MAIN_COLLECTION_OPEN','true');
+ await page.reload({waitUntil:'networkidle'});await page.locator('#g-welcome').waitFor({state:'visible'});
+ assert.equal((await page.locator('#g-ui-check-id').textContent()).replace('점검 ID: ',''),uiId);
+ assert.match(await page.locator('#g-resume').textContent(),/1개 문항/);
+ assert.equal(writes.filter(r=>r.kind==='trial').length,1);
  assert.deepEqual(errors,[]);
  await page.close();
  await writeFile('artifacts/public-release-checks.json',JSON.stringify({status:'PASS',pathsChecked:attempts,buildBoundary:boundary,
-   assetCount:assetPaths.length,sourceMaps:0,collector:'generated release collector with in-memory Google services; NO real Sheets writes',closedGate:true,productionRealPolicyTrial:true,trialRows:1,runRows:2,sessionRows:1},null,2));
+   assetCount:assetPaths.length,sourceMaps:0,collector:'generated release collector with in-memory Google services; NO real Sheets writes',closedGate:true,productionRealPolicyTrial:true,actualBuiltStudyConfig:true,uiCheckSessionTagged:true,closedOnResume:true,resumePreserved:true,trialRows:1,runRows:2,sessionRows:1},null,2));
  console.log('PUBLIC_RELEASE_CHECKS_PASS');
 }catch(error){
  const livePages=browser?.contexts().flatMap(c=>c.pages())||[];
