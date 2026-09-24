@@ -6,7 +6,7 @@ import {mockCollector} from '../tests/fixtures/collector-mock.mjs';
 export async function guidedChecks(browser){
   const page=await browser.newPage({viewport:{width:1024,height:768}}),errors=[],writes=[],timings=[];
   page.on('pageerror',e=>errors.push(e.message));
-  const study=JSON.parse(await readFile('public/study.json','utf8'));
+  const study=JSON.parse(await readFile('config/study.pilot.json','utf8'));
   const manifest=JSON.parse(await readFile('public/media/rubi-intro-v1/manifest.json','utf8'));
   const film=await readFile('public/media/rubi-intro-v1/rubi-intro.mp4');
   assert.equal(createHash('sha256').update(film).digest('hex'),manifest.videoSha256);

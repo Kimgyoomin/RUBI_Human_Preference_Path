@@ -5,6 +5,7 @@ export {guidedChecks} from './block-ux-checks.mjs';
 export async function residentChecks(browser){
   const p=await browser.newPage();
   try{
+    await p.route('https://script.google.com/macros/s/**/exec',r=>r.abort());
     await p.goto('http://127.0.0.1:4177/',{waitUntil:'networkidle'});
     const result=await p.evaluate(async()=>{
       const {fetchHostedBundle}=await import('/src/runtime/bundle-loader.ts');

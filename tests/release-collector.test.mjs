@@ -52,10 +52,15 @@ test('main repairs failure before/after each write with original ID and does not
    assert.equal(m.rows('Trials').length,1);assert.equal(m.rows('Runs').length,2);assert.equal(m.rows('Sessions').length,1);assert.equal(m.rows('Trials')[0].saveState,'complete');
  }
 });
-test('new main configuration does not silently activate or overwrite current pilot',()=>{
- const pilot=JSON.parse(fs.readFileSync('public/study.json','utf8')),main=JSON.parse(fs.readFileSync('config/study.main.json','utf8'));
- assert.equal(pilot.status,'draft');assert.notEqual(pilot.id,main.id);assert.equal(main.id,MAIN_ID);assert.equal(main.requiredReleaseVersion,'isolated-main-collector-v8');
+test('owner-approved UI check targets main without replacing the preserved pilot or opening server properties',()=>{
+ const live=JSON.parse(fs.readFileSync('public/study.json','utf8'));
+ const pilot=JSON.parse(fs.readFileSync('config/study.pilot.json','utf8'));
+ const main=JSON.parse(fs.readFileSync('config/study.main.json','utf8'));
+ assert.deepEqual(live,{...main,collectionPhase:'owner-ui-check-v1'});
+ assert.equal(live.status,'released');assert.equal(live.id,MAIN_ID);assert.equal(live.requiredReleaseVersion,'isolated-main-collector-v8');
+ assert.equal(pilot.status,'draft');assert.notEqual(pilot.id,main.id);
  assert.deepEqual(main.heightBlocks,pilot.heightBlocks);assert.deepEqual(main.introduction,pilot.introduction);
+ const m=releaseMock({properties:{}});assert.equal(m.call('ping',{experimentId:live.id,studyStatus:live.status}).collectionOpen,false);
 });
 test('only doGet and doPost are exposed as public Apps Script RPC functions',()=>{
  const m=releaseMock({properties:{}});
