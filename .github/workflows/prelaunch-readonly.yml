@@ -1,0 +1,42 @@
+name: Prelaunch read-only live audit
+
+on:
+  push:
+    branches: [audit/prelaunch-resume-readonly-v8]
+    paths:
+      - '.github/workflows/prelaunch-readonly.yml'
+      - 'tools/live-prelaunch-readonly.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Recheck pure scheduler and generated collector recovery
+        run: node --test tests/height-block-study.test.mjs tests/collector-recovery.test.mjs tests/release-collector.test.mjs
+      - name: Generate complete owner-deployable collector
+        run: node tools/build-release-collector.mjs
+      - name: Prepare isolated audit browser
+        run: |
+          npm install --prefix /tmp/rubi-live-audit --no-package-lock --ignore-scripts playwright@1.56.0
+          node /tmp/rubi-live-audit/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Check deployed Pages and read-only Apps Script pings
+        run: node tools/live-prelaunch-readonly.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: prelaunch-readonly-resume-v8
+          path: |
+            artifacts/live-prelaunch/
+            artifacts/RUBI_Collector_release_v8_Code.gs
+          if-no-files-found: error
