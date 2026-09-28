@@ -1,0 +1,47 @@
+name: Verify external pilot live read-only
+on:
+  push:
+    branches: [audit/external-pilot-rollout]
+    paths: ['.github/workflows/verify-external-pilot.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare isolated read-only browser
+        run: |
+          npm install --prefix /tmp/pilot-live --no-package-lock --ignore-scripts playwright@1.56.0
+          node /tmp/pilot-live/node_modules/playwright/cli.js install --with-deps chromium
+          cp audit-transfer/verify-external-pilot.mjs /tmp/pilot-live/check.mjs
+      - name: Wait for expected Pages deployment via bounded GET requests only
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const deadline=Date.now()+12*60*1000;
+          let ready=false;
+          while(Date.now()<deadline){
+            try{
+              const response=await fetch('https://kimgyoomin.github.io/RUBI_Human_Preference_Path/study.json?readiness='+Date.now(),{signal:AbortSignal.timeout(15000)});
+              if(response.ok){const s=await response.json();if(s.collectionPhase==='external-pilot-v1'&&s.protocolVersion==='height-blocks-no-repeat-v9'){ready=true;break;}}
+            }catch(error){console.log('Pages GET retry:',String(error));}
+            await new Promise(resolve=>setTimeout(resolve,10000));
+          }
+          if(!ready)throw new Error('Expected external pilot Pages configuration was not observed before timeout');
+          console.log('EXTERNAL_PILOT_PAGES_READY');
+          NODE
+      - name: Read-only public UI and collector verification
+        run: node /tmp/pilot-live/check.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: external-pilot-live
+          path: artifacts/external-pilot-live
+          if-no-files-found: error
