@@ -53,7 +53,7 @@ test('main repairs failure before/after each write with original ID and does not
  }
 });
 test('owner-approved UI check targets main without replacing the preserved pilot or opening server properties',()=>{
- const live=JSON.parse(fs.readFileSync('public/study.json','utf8'));
+ const live=JSON.parse(fs.readFileSync('public/study.legacy-v7.json','utf8'));
  const pilot=JSON.parse(fs.readFileSync('config/study.pilot.json','utf8'));
  const main=JSON.parse(fs.readFileSync('config/study.main.json','utf8'));
  assert.deepEqual(live,{...main,collectionPhase:'owner-ui-check-v1'});

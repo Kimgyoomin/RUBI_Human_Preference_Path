@@ -1,22 +1,21 @@
 import { AppsScriptTransport } from './apps-script.ts';
+import {loadStudy} from './study-selection.ts';
 
 /** The server gate is authoritative. Editing this UI cannot enable writes. */
 export async function allowPublicStart(): Promise<boolean> {
   try {
-    const res = await fetch(`${import.meta.env.BASE_URL}study.json`, { cache: 'no-cache' });
-    if (!res.ok) throw new Error('설문 설정을 불러오지 못했습니다.');
-    const study = await res.json();
+    const study = await loadStudy();
     if (study.status === 'draft') return true; // existing pilot, separate dataset
     if (study.status !== 'released' || study.id !== 'rubi-hpp-main-v1' ||
-        study.requiredReleaseVersion !== 'isolated-main-collector-v8' || study.datasetTag !== 'main-v1') {
+        !['isolated-main-collector-v8','no-repeat-collector-v9'].includes(study.requiredReleaseVersion??'') || study.datasetTag !== 'main-v1') {
       throw new Error('본 조사 설정을 확인 중입니다. 잠시 후 다시 방문해 주세요.');
     }
     const transport = new AppsScriptTransport(study.responseApi);
     try {
-      const reply = await transport.ping(study.id, study.status) as unknown as Record<string, unknown>;
+      const reply = await transport.ping(study.id, study.status, study.protocolVersion) as unknown as Record<string, unknown>;
       if (reply.service !== 'rubi-hpp' || reply.experimentId !== study.id || reply.studyStatus !== study.status ||
           reply.releaseVersion !== study.requiredReleaseVersion || reply.datasetTag !== study.datasetTag ||
-          reply.schemaReady !== true) throw new Error('본 조사 저장 서비스가 아직 준비되지 않았습니다.');
+          reply.schemaReady !== true) throw new Error('저장 서비스 업데이트가 필요합니다. 연구자는 기존 Apps Script에 새 v9 완성본을 배포해 주세요. 기존 참여는 ?protocol=legacy-v7 주소로 이어갈 수 있습니다.');
       if (reply.collectionOpen !== true) throw new Error('지금은 설문을 받지 않고 있습니다. 개시 안내를 받은 뒤 다시 방문해 주세요.');
     } finally { transport.dispose(); }
     return true;

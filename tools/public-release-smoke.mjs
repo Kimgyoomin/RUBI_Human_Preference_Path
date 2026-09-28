@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import {readFile,writeFile,readdir} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {chromium} from 'playwright';
-import {releaseMock} from '../tests/fixtures/release-mock.mjs';
+import {noRepeatMock as releaseMock} from '../tests/fixtures/no-repeat-mock.mjs';
+import {releaseMock as legacyService,mainPayload} from '../tests/fixtures/release-mock.mjs';
+import * as legacyProtocol from '../src/core/height-block-study.ts';
+import {collectionStorageKey} from '../src/ui-session.ts';
 
 const origin='http://127.0.0.1:4173';
 const base=origin+'/RUBI_Human_Preference_Path/';
@@ -75,7 +78,8 @@ try{
  await page.waitForFunction(()=>document.querySelector('#g-intro-video').currentTime>.3);
  await page.locator('#g-intro-video').evaluate(v=>v.pause());await page.locator('#g-intro-ack').check();await page.locator('#g-begin').click();
  await page.locator('#g-observe').waitFor({state:'visible',timeout:120000});
- // Observe A then B using actual production JS/physics, no DEV hooks.
+ // Observe one full height block with the actual released v9 configuration.
+ for(let trial=0;trial<4;trial++){
  for(const letter of ['A','B']){
    for(let attempt=0;attempt<3;attempt++){
      await page.locator('#g-watch').click();
@@ -91,24 +95,46 @@ try{
  }
  await page.locator('#g-choice').waitFor({state:'visible',timeout:30000});
  await page.screenshot({path:'artifacts/main-choice-release.png',fullPage:true});
+ if(trial===1){await page.setViewportSize({width:390,height:844});await page.screenshot({path:'artifacts/no-repeat-choice-mobile.png',fullPage:true});await page.setViewportSize({width:1440,height:900});}
  await page.locator('#g-choose-a').click();
- await page.waitForFunction(()=>document.querySelector('#g-counter')?.textContent?.startsWith('2 /'),null,{timeout:30000});
- assert.equal(writes.filter(r=>r.kind==='trial').length,1);assert.equal(m.rows('Trials').length,1);assert.equal(m.rows('Runs').length,2);
+ await page.waitForFunction(expected=>document.querySelector('#g-counter')?.textContent?.startsWith(expected+' /'),trial+2,{timeout:30000});
+ }
+ assert.equal(writes.filter(r=>r.kind==='trial').length,4);assert.equal(m.rows('Trials').length,4);assert.equal(m.rows('Runs').length,8);
+ assert.equal(new Set(m.rows('Trials').map(r=>r.detourExtraM)).size,4);
+ assert.ok(m.rows('Trials').some(r=>r.detourExtraM===2.4));
+ assert.ok(m.rows('Trials').every(r=>r.protocolVersion==='height-blocks-no-repeat-v9'));
  assert.equal(m.rows('Sessions')[0].profileCompleted,true);assert.equal(m.rows('Sessions')[0].status,'started');assert.equal(m.rows('Trials')[0].saveState,'complete');
  for(const tab of ['Trials','Runs','Sessions'])assert.ok(m.rows(tab).every(r=>r.sessionId===uiId));
  // Reload of a closed intake never sends more answers, even from a started test session.
  m.properties.set('RUBI_MAIN_COLLECTION_OPEN','false');
  await page.reload({waitUntil:'networkidle'});await page.getByText('지금은 설문을 받지 않고 있습니다.',{exact:false}).waitFor();
- assert.equal(await page.locator('#g-consent').count(),0);assert.equal(m.rows('Trials').length,1);
+ assert.equal(await page.locator('#g-consent').count(),0);assert.equal(m.rows('Trials').length,4);
  m.properties.set('RUBI_MAIN_COLLECTION_OPEN','true');
  await page.reload({waitUntil:'networkidle'});await page.locator('#g-welcome').waitFor({state:'visible'});
  assert.equal((await page.locator('#g-ui-check-id').textContent()).replace('점검 ID: ',''),uiId);
- assert.match(await page.locator('#g-resume').textContent(),/1개 문항/);
- assert.equal(writes.filter(r=>r.kind==='trial').length,1);
+ assert.match(await page.locator('#g-resume').textContent(),/4개 문항/);
+ assert.equal(writes.filter(r=>r.kind==='trial').length,4);
  assert.deepEqual(errors,[]);
  await page.close();
+ const legacyPage=await browser.newPage();instrument(legacyPage,'legacy resume on deployed v8');
+ const legacy=JSON.parse(await readFile('public/study.legacy-v7.json','utf8'));
+ const plan=legacyProtocol.createBlockPlan(42),first=mainPayload(legacyProtocol.nextBlockQuestion(plan,[]),plan);
+ first.sessionId='ui-check-00000000-0000-4000-8000-000000000042';
+ const oldSession={id:first.sessionId,participantId:first.participantId,startedAt:first.sessionStartedAtUtc,plan,index:1,profile:first.preProfile,consent:true,tutorialCompleted:true,complete:false,responses:[first]};
+ const oldKey=collectionStorageKey(legacy.id,legacy.protocolVersion,true),oldRaw=JSON.stringify(oldSession);
+ await legacyPage.addInitScript(({key,value})=>localStorage.setItem(key,value),{key:oldKey,value:oldRaw});
+ const oldServer=legacyService(),oldWrites=[];await routeCollector(legacyPage,oldServer,oldWrites);
+ await legacyPage.goto(base,{waitUntil:'networkidle'});await legacyPage.locator('#g-welcome').waitFor({state:'visible'});
+ assert.match(await legacyPage.locator('#g-resume').textContent(),/1개 문항/);
+ assert.equal((await legacyPage.locator('#g-ui-check-id').textContent()).replace('점검 ID: ',''),first.sessionId);
+ assert.equal(await legacyPage.evaluate(key=>localStorage.getItem(key),oldKey),oldRaw);
+ await legacyPage.screenshot({path:'artifacts/legacy-v7-resume.png',fullPage:true});
+ await legacyPage.goto(base+'?protocol=current',{waitUntil:'networkidle'});
+ await legacyPage.getByText('저장 서비스 업데이트가 필요합니다.',{exact:false}).waitFor();
+ assert.equal(await legacyPage.locator('#g-consent').count(),0);assert.equal(oldWrites.length,0);
+ await legacyPage.close();
  await writeFile('artifacts/public-release-checks.json',JSON.stringify({status:'PASS',pathsChecked:attempts,buildBoundary:boundary,
-   assetCount:assetPaths.length,sourceMaps:0,collector:'generated release collector with in-memory Google services; NO real Sheets writes',closedGate:true,productionRealPolicyTrial:true,actualBuiltStudyConfig:true,uiCheckSessionTagged:true,closedOnResume:true,resumePreserved:true,trialRows:1,runRows:2,sessionRows:1},null,2));
+   assetCount:assetPaths.length,sourceMaps:0,collector:'generated release collector with in-memory Google services; NO real Sheets writes',closedGate:true,productionRealPolicyTrial:true,actualBuiltStudyConfig:true,uiCheckSessionTagged:true,closedOnResume:true,resumePreserved:true,trialRows:4,runRows:8,sessionRows:1,fourUniqueConditions:true,range2400Observed:true,legacyResumeVerified:true},null,2));
  console.log('PUBLIC_RELEASE_CHECKS_PASS');
 }catch(error){
  const livePages=browser?.contexts().flatMap(c=>c.pages())||[];

@@ -48,7 +48,7 @@ export async function residentChecks(browser){
     const candidates=await p.evaluate(async()=>{
       const {fetchHostedBundle}=await import('/src/runtime/bundle-loader.ts');const {OnnxNetworks}=await import('/src/runtime/onnx.ts');const {Physics}=await import('/src/runtime/physics.ts');const {makeScenario}=await import('/src/core/scenario.ts');
       const {bundle}=await fetchHostedBundle(new URL('/models/rubi-web/',location.href),()=>{}),networks=await OnnxNetworks.create(bundle.files),engine=await Physics.create(bundle,makeScenario(.05,.4,.5)),report=[];
-      try{for(const h of [.05,.07,.09,.11])for(const d of [.4,.6,.8,1,1.2,1.4,1.6]){
+      try{for(const h of [.05,.07,.09,.11])for(const d of [.4,.6,.8,1,1.2,1.4,1.6,1.8,2,2.2,2.4]){
         engine.setScenario(makeScenario(h,d,.5));const r=await engine.rollout('detour',networks,new AbortController().signal,()=>{});report.push({h,d,completed:r.completed,reason:r.reason,duration:r.duration});
       }}finally{engine.dispose();await networks.dispose();}return report;
     });
