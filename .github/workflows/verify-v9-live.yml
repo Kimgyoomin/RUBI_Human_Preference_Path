@@ -1,0 +1,31 @@
+name: Verify v9 live read-only
+on:
+  push:
+    branches: [audit/no-repeat-source-v9]
+    paths: ['.github/workflows/verify-v9-live.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare isolated read-only browser
+        run: |
+          npm install --prefix /tmp/v9-live --no-package-lock --ignore-scripts playwright@1.56.0
+          node /tmp/v9-live/node_modules/playwright/cli.js install --with-deps chromium
+          cp audit-transfer/verify-v9-live.mjs /tmp/v9-live/check.mjs
+      - name: Verify deployed configuration and legacy/current collector handshake
+        run: node /tmp/v9-live/check.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v9-live-readonly
+          path: artifacts/v9-live
+          if-no-files-found: error
