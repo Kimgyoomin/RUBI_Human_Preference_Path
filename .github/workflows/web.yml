@@ -38,11 +38,11 @@ jobs:
       - name: Preserve source provenance for media diagnostics
         run: |
           mkdir -p artifacts
-          tar -czf artifacts/source-snapshot.tar.gz src tools tests apps-script docs config public/study.json package.json package-lock.json tsconfig.json vite.config.ts index.html
+          tar -czf artifacts/source-snapshot.tar.gz src tools tests apps-script docs config public/study.json public/study.legacy-v7.json package.json package-lock.json tsconfig.json vite.config.ts index.html
       - name: Test controller, hosted assets, survey and response API
         run: npm test
-      - name: Build deployable isolated collector
-        run: node tools/build-release-collector.mjs
+      - name: Build deployable isolated collectors
+        run: node tools/build-release-collector.mjs && node tools/build-no-repeat-collector.mjs
       - name: Check TypeScript before rendering media
         run: npx tsc --noEmit
       - name: Validate assets (missing files allowed for draft only)
