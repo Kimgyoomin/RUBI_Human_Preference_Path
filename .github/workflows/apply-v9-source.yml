@@ -1,0 +1,30 @@
+name: Apply reviewed v9 source patch
+on:
+  push:
+    branches: [audit/no-repeat-source-v9]
+    paths: ['.github/workflows/apply-v9-source.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify source-only transfer
+        run: |
+          cat audit-transfer/v9-patch.part1 audit-transfer/v9-patch.part2 audit-transfer/v9-patch.part3 | base64 --decode | gzip -d > /tmp/v9.patch
+          echo '55d5f633f98f4bdc1f4cc90bc40de5d3379bf53191f19b6a19c5cef601ea53a1  /tmp/v9.patch' | sha256sum -c -
+      - name: Apply to pinned feature base without workflow or asset changes
+        run: |
+          git fetch --depth=1 origin ff47cca12d5f0ffcd49950671bc92316bfbd9918
+          git checkout --detach ff47cca12d5f0ffcd49950671bc92316bfbd9918
+          git apply --unidiff-zero --index /tmp/v9.patch
+          test "$(git diff --cached --name-only | wc -l)" -eq 16
+          if git diff --cached --name-only | grep -E '^(\.github/|public/models/|public/media/|package-lock.json$)'; then exit 1; fi
+          git diff --cached --check
+          git config user.name 'RUBI Protocol Refactor'
+          git config user.email 'protocol-refactor@users.noreply.github.com'
+          git commit -m 'Add versioned no-repeat A/B protocol and backward-compatible collector'
+          git push origin HEAD:refs/heads/feat/no-repeat-questions-v9
+          git rev-parse HEAD
