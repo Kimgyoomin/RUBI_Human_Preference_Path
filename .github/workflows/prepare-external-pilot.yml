@@ -1,0 +1,32 @@
+name: Prepare external pilot rollout
+on:
+  push:
+    branches: [audit/external-pilot-rollout]
+    paths: ['.github/workflows/prepare-external-pilot.yml']
+permissions:
+  contents: write
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Apply fixed-scope changes to release branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp audit-transfer/prepare-external-pilot.py /tmp/prepare-external-pilot.py
+          git fetch origin release/external-pilot-v1
+          git checkout -B release/external-pilot-v1 origin/release/external-pilot-v1
+          test "$(git rev-parse HEAD)" = '0cfcdc84aff4005f5fc9abc829b41bde8d51b61d'
+          python3 /tmp/prepare-external-pilot.py .
+          node --test tests/ui-session.test.mjs tests/no-repeat-v9.test.mjs tests/external-pilot.test.mjs
+          git diff --check
+          git add public/study.json public/study.ui-check-v9.json src/ui-session.ts src/runtime/study-selection.ts src/participant.ts tests/no-repeat-v9.test.mjs tests/external-pilot.test.mjs tools/public-release-smoke.mjs docs/EXTERNAL_PILOT_V9_KO.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Prepare external pilot collection and isolate developer test sessions'
+          git push origin HEAD:refs/heads/release/external-pilot-v1
