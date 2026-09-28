@@ -67,7 +67,7 @@ test('v9 repairs failures before/after writes, rejects repeat conditions and cro
  good.call('trial',second);assert.equal(good.rows('Trials').length,2);
 });
 test('old browser reload preserves unfinished v7; current/new and legacy storage stay separate',()=>{
- const current=JSON.parse(fs.readFileSync('public/study.json')),legacy=JSON.parse(fs.readFileSync('public/study.legacy-v7.json'));
+ const current=JSON.parse(fs.readFileSync('public/study.ui-check-v9.json')),legacy=JSON.parse(fs.readFileSync('public/study.legacy-v7.json'));
  const map=new Map(),store={getItem:k=>map.get(k)??null};
  const key=s=>collectionStorageKey(s.id,s.protocolVersion,true);
  assert.equal(chooseStudy(current,legacy,store,null),current);

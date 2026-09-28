@@ -5,12 +5,12 @@ import {chromium} from 'playwright';
 import {noRepeatMock as releaseMock} from '../tests/fixtures/no-repeat-mock.mjs';
 import {releaseMock as legacyService,mainPayload} from '../tests/fixtures/release-mock.mjs';
 import * as legacyProtocol from '../src/core/height-block-study.ts';
-import {collectionStorageKey} from '../src/ui-session.ts';
+import {collectionStorageKey,EXTERNAL_PILOT_PHASE} from '../src/ui-session.ts';
 
 const origin='http://127.0.0.1:4173';
 const base=origin+'/RUBI_Human_Preference_Path/';
 const main=JSON.parse(await readFile('public/study.json','utf8'));
-assert.equal(main.id,'rubi-hpp-main-v1');assert.equal(main.status,'released');assert.equal(main.collectionPhase,'owner-ui-check-v1');
+assert.equal(main.id,'rubi-hpp-main-v1');assert.equal(main.status,'released');assert.equal(main.collectionPhase,'external-pilot-v1');
 const boundary=JSON.parse(await readFile('artifacts/public-build-boundary.json','utf8'));
 assert.equal(boundary.participantOnly,true);assert.deepEqual(boundary.researchModules,[]);
 assert.ok(!(await readdir('dist')).some(n=>['api','apps-script','src','config'].includes(n)));
@@ -67,10 +67,13 @@ try{
  const m=releaseMock();await routeCollector(page,m,writes);
  await page.goto(base,{waitUntil:'networkidle'});await page.locator('#g-welcome').waitFor({state:'visible'});
  assert.equal(await page.locator('#g-research').count(),0);assert.equal(await page.locator('#g-pilot-note').isVisible(),false);
- assert.equal(await page.locator('#g-ui-check-note').isVisible(),true);
- const uiId=(await page.locator('#g-ui-check-id').textContent()).replace('점검 ID: ','');
- assert.match(uiId,/^ui-check-[0-9a-f-]{36}$/);
- await page.screenshot({path:'artifacts/owner-ui-check-welcome.png',fullPage:true});
+ assert.equal(await page.locator('#g-ui-check-note').isVisible(),false);
+ assert.equal(await page.locator('#g-external-pilot-note').isVisible(),true);
+ assert.equal(await page.locator('#g-restart').isVisible(),false);
+ const pilotKey=collectionStorageKey(main.id,main.protocolVersion,EXTERNAL_PILOT_PHASE);
+ const uiId=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).id,pilotKey);
+ assert.match(uiId,/^pilot-[0-9a-f-]{36}$/);
+ await page.screenshot({path:'artifacts/external-pilot-welcome.png',fullPage:true});
  await page.locator('#g-consent').check();await page.locator('#g-start').click();
  await page.locator('#g-robotics').selectOption('no');await page.locator('#g-knew').selectOption('no');await page.locator('#g-exposure').selectOption('none');await page.locator('#g-profile-next').click();
  await page.waitForFunction(()=>document.querySelector('#g-intro-video').readyState>=2,null,{timeout:45000});
@@ -111,7 +114,8 @@ try{
  assert.equal(await page.locator('#g-consent').count(),0);assert.equal(m.rows('Trials').length,4);
  m.properties.set('RUBI_MAIN_COLLECTION_OPEN','true');
  await page.reload({waitUntil:'networkidle'});await page.locator('#g-welcome').waitFor({state:'visible'});
- assert.equal((await page.locator('#g-ui-check-id').textContent()).replace('점검 ID: ',''),uiId);
+ assert.equal(await page.evaluate(key=>JSON.parse(localStorage.getItem(key)).id,pilotKey),uiId);
+ assert.equal(await page.locator('#g-ui-check-note').isVisible(),false);
  assert.match(await page.locator('#g-resume').textContent(),/4개 문항/);
  assert.equal(writes.filter(r=>r.kind==='trial').length,4);
  assert.deepEqual(errors,[]);
@@ -124,7 +128,7 @@ try{
  const oldKey=collectionStorageKey(legacy.id,legacy.protocolVersion,true),oldRaw=JSON.stringify(oldSession);
  await legacyPage.addInitScript(({key,value})=>localStorage.setItem(key,value),{key:oldKey,value:oldRaw});
  const oldServer=legacyService(),oldWrites=[];await routeCollector(legacyPage,oldServer,oldWrites);
- await legacyPage.goto(base,{waitUntil:'networkidle'});await legacyPage.locator('#g-welcome').waitFor({state:'visible'});
+ await legacyPage.goto(base+'?protocol=legacy-v7',{waitUntil:'networkidle'});await legacyPage.locator('#g-welcome').waitFor({state:'visible'});
  assert.match(await legacyPage.locator('#g-resume').textContent(),/1개 문항/);
  assert.equal((await legacyPage.locator('#g-ui-check-id').textContent()).replace('점검 ID: ',''),first.sessionId);
  assert.equal(await legacyPage.evaluate(key=>localStorage.getItem(key),oldKey),oldRaw);
@@ -133,8 +137,25 @@ try{
  await legacyPage.getByText('저장 서비스 업데이트가 필요합니다.',{exact:false}).waitFor();
  assert.equal(await legacyPage.locator('#g-consent').count(),0);assert.equal(oldWrites.length,0);
  await legacyPage.close();
+ const switchPage=await browser.newPage();instrument(switchPage,'purpose separation');
+ const switchWrites=[];await routeCollector(switchPage,releaseMock(),switchWrites);
+ await switchPage.goto(base+'?collection=ui-check&protocol=current',{waitUntil:'networkidle'});
+ await switchPage.locator('#g-welcome').waitFor({state:'visible'});
+ const checkId=(await switchPage.locator('#g-ui-check-id').textContent()).replace('점검 ID: ','');
+ assert.match(checkId,/^ui-check-/);
+ const checkKey=collectionStorageKey(main.id,main.protocolVersion,true);
+ const beforeCheck=await switchPage.evaluate(k=>localStorage.getItem(k),checkKey);
+ await switchPage.goto(base,{waitUntil:'networkidle'});await switchPage.locator('#g-welcome').waitFor({state:'visible'});
+ assert.equal(await switchPage.locator('#g-ui-check-note').isVisible(),false);
+ assert.equal(await switchPage.locator('#g-external-pilot-note').isVisible(),true);
+ assert.equal(await switchPage.evaluate(k=>localStorage.getItem(k),checkKey),beforeCheck);
+ const pilotId=await switchPage.evaluate(k=>JSON.parse(localStorage.getItem(k)).id,collectionStorageKey(main.id,main.protocolVersion,EXTERNAL_PILOT_PHASE));
+ assert.match(pilotId,/^pilot-/);assert.notEqual(pilotId,checkId);
+ await switchPage.setViewportSize({width:390,height:844});
+ await switchPage.screenshot({path:'artifacts/external-pilot-welcome-mobile.png',fullPage:true});
+ assert.equal(switchWrites.length,0);await switchPage.close();
  await writeFile('artifacts/public-release-checks.json',JSON.stringify({status:'PASS',pathsChecked:attempts,buildBoundary:boundary,
-   assetCount:assetPaths.length,sourceMaps:0,collector:'generated release collector with in-memory Google services; NO real Sheets writes',closedGate:true,productionRealPolicyTrial:true,actualBuiltStudyConfig:true,uiCheckSessionTagged:true,closedOnResume:true,resumePreserved:true,trialRows:4,runRows:8,sessionRows:1,fourUniqueConditions:true,range2400Observed:true,legacyResumeVerified:true},null,2));
+   assetCount:assetPaths.length,sourceMaps:0,collector:'generated release collector with in-memory Google services; NO real Sheets writes',closedGate:true,productionRealPolicyTrial:true,actualBuiltStudyConfig:true,externalPilotSessionTagged:true,closedOnResume:true,resumePreserved:true,trialRows:4,runRows:8,sessionRows:1,fourUniqueConditions:true,range2400Observed:true,legacyResumeVerified:true},null,2));
  console.log('PUBLIC_RELEASE_CHECKS_PASS');
 }catch(error){
  const livePages=browser?.contexts().flatMap(c=>c.pages())||[];

@@ -43,53 +43,250 @@
   },
   "requiredReleaseVersion": "no-repeat-collector-v9",
   "datasetTag": "main-v1",
-  "collectionPhase": "owner-ui-check-v1",
+  "collectionPhase": "external-pilot-v1",
   "legacyStudyUrl": "./study.legacy-v7.json",
   "guidedScenarios": [
-    {"height":0.05,"detour":0.4,"speed":0.5},
-    {"height":0.05,"detour":0.6,"speed":0.5},
-    {"height":0.05,"detour":0.8,"speed":0.5},
-    {"height":0.05,"detour":1.0,"speed":0.5},
-    {"height":0.05,"detour":1.2,"speed":0.5},
-    {"height":0.05,"detour":1.4,"speed":0.5},
-    {"height":0.05,"detour":1.6,"speed":0.5},
-    {"height":0.05,"detour":1.8,"speed":0.5},
-    {"height":0.05,"detour":2.0,"speed":0.5},
-    {"height":0.05,"detour":2.2,"speed":0.5},
-    {"height":0.05,"detour":2.4,"speed":0.5},
-    {"height":0.07,"detour":0.4,"speed":0.5},
-    {"height":0.07,"detour":0.6,"speed":0.5},
-    {"height":0.07,"detour":0.8,"speed":0.5},
-    {"height":0.07,"detour":1.0,"speed":0.5},
-    {"height":0.07,"detour":1.2,"speed":0.5},
-    {"height":0.07,"detour":1.4,"speed":0.5},
-    {"height":0.07,"detour":1.6,"speed":0.5},
-    {"height":0.07,"detour":1.8,"speed":0.5},
-    {"height":0.07,"detour":2.0,"speed":0.5},
-    {"height":0.07,"detour":2.2,"speed":0.5},
-    {"height":0.07,"detour":2.4,"speed":0.5},
-    {"height":0.09,"detour":0.4,"speed":0.5},
-    {"height":0.09,"detour":0.6,"speed":0.5},
-    {"height":0.09,"detour":0.8,"speed":0.5},
-    {"height":0.09,"detour":1.0,"speed":0.5},
-    {"height":0.09,"detour":1.2,"speed":0.5},
-    {"height":0.09,"detour":1.4,"speed":0.5},
-    {"height":0.09,"detour":1.6,"speed":0.5},
-    {"height":0.09,"detour":1.8,"speed":0.5},
-    {"height":0.09,"detour":2.0,"speed":0.5},
-    {"height":0.09,"detour":2.2,"speed":0.5},
-    {"height":0.09,"detour":2.4,"speed":0.5},
-    {"height":0.11,"detour":0.4,"speed":0.5},
-    {"height":0.11,"detour":0.6,"speed":0.5},
-    {"height":0.11,"detour":0.8,"speed":0.5},
-    {"height":0.11,"detour":1.0,"speed":0.5},
-    {"height":0.11,"detour":1.2,"speed":0.5},
-    {"height":0.11,"detour":1.4,"speed":0.5},
-    {"height":0.11,"detour":1.6,"speed":0.5},
-    {"height":0.11,"detour":1.8,"speed":0.5},
-    {"height":0.11,"detour":2.0,"speed":0.5},
-    {"height":0.11,"detour":2.2,"speed":0.5},
-    {"height":0.11,"detour":2.4,"speed":0.5}
+    {
+      "height": 0.05,
+      "detour": 0.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 0.6,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 0.8,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 1.0,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 1.2,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 1.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 1.6,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 1.8,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 2.0,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 2.2,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 2.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.07,
+      "detour": 0.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.07,
+      "detour": 0.6,
+      "speed": 0.5
+    },
+    {
+      "height": 0.07,
+      "detour": 0.8,
+      "speed": 0.5
+    },
+    {
+      "height": 0.07,
+      "detour": 1.0,
+      "speed": 0.5
+    },
+    {
+      "height": 0.07,
+      "detour": 1.2,
+      "speed": 0.5
+    },
+    {
+      "height": 0.07,
+      "detour": 1.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.07,
+      "detour": 1.6,
+      "speed": 0.5
+    },
+    {
+      "height": 0.07,
+      "detour": 1.8,
+      "speed": 0.5
+    },
+    {
+      "height": 0.07,
+      "detour": 2.0,
+      "speed": 0.5
+    },
+    {
+      "height": 0.07,
+      "detour": 2.2,
+      "speed": 0.5
+    },
+    {
+      "height": 0.07,
+      "detour": 2.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.09,
+      "detour": 0.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.09,
+      "detour": 0.6,
+      "speed": 0.5
+    },
+    {
+      "height": 0.09,
+      "detour": 0.8,
+      "speed": 0.5
+    },
+    {
+      "height": 0.09,
+      "detour": 1.0,
+      "speed": 0.5
+    },
+    {
+      "height": 0.09,
+      "detour": 1.2,
+      "speed": 0.5
+    },
+    {
+      "height": 0.09,
+      "detour": 1.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.09,
+      "detour": 1.6,
+      "speed": 0.5
+    },
+    {
+      "height": 0.09,
+      "detour": 1.8,
+      "speed": 0.5
+    },
+    {
+      "height": 0.09,
+      "detour": 2.0,
+      "speed": 0.5
+    },
+    {
+      "height": 0.09,
+      "detour": 2.2,
+      "speed": 0.5
+    },
+    {
+      "height": 0.09,
+      "detour": 2.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.11,
+      "detour": 0.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.11,
+      "detour": 0.6,
+      "speed": 0.5
+    },
+    {
+      "height": 0.11,
+      "detour": 0.8,
+      "speed": 0.5
+    },
+    {
+      "height": 0.11,
+      "detour": 1.0,
+      "speed": 0.5
+    },
+    {
+      "height": 0.11,
+      "detour": 1.2,
+      "speed": 0.5
+    },
+    {
+      "height": 0.11,
+      "detour": 1.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.11,
+      "detour": 1.6,
+      "speed": 0.5
+    },
+    {
+      "height": 0.11,
+      "detour": 1.8,
+      "speed": 0.5
+    },
+    {
+      "height": 0.11,
+      "detour": 2.0,
+      "speed": 0.5
+    },
+    {
+      "height": 0.11,
+      "detour": 2.2,
+      "speed": 0.5
+    },
+    {
+      "height": 0.11,
+      "detour": 2.4,
+      "speed": 0.5
+    }
   ],
-  "scenarios": [{"height":0.05,"detour":0.4,"speed":0.5},{"height":0.05,"detour":0.6,"speed":0.5},{"height":0.05,"detour":0.8,"speed":0.5},{"height":0.05,"detour":1.0,"speed":0.5}]
+  "scenarios": [
+    {
+      "height": 0.05,
+      "detour": 0.4,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 0.6,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 0.8,
+      "speed": 0.5
+    },
+    {
+      "height": 0.05,
+      "detour": 1.0,
+      "speed": 0.5
+    }
+  ]
 }

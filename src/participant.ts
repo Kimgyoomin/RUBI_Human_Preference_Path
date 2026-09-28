@@ -1,5 +1,5 @@
 import './guided.css';
-import {isUiCheckStudy,collectionStorageKey,createSessionId,sessionMatchesPurpose} from './ui-session.ts';
+import {isUiCheckStudy,isExternalPilotStudy,collectionPurpose,collectionStorageKey,createSessionId,sessionMatchesPurpose} from './ui-session.ts';
 import {fetchHostedBundle} from './runtime/bundle-loader.ts';
 import type {Bundle} from './core/model.ts';
 import {makeScenario} from './core/scenario.ts';
@@ -36,6 +36,7 @@ $('app').innerHTML=`
 <div id="g-pilot-note" class="g-pilot-note" hidden>현재는 설문을 시험하는 단계입니다. 이번 답변은 정식 조사와 구분해 보관합니다.</div>
 <div id="g-ui-check-note" class="g-pilot-note" role="status" hidden>본 조사 저장을 확인하는 최종 점검입니다. 이번 응답은 본 조사 분석에서 제외합니다.<br><span id="g-ui-check-id"></span></div>
 <div id="g-protocol-note" class="g-pilot-note" hidden><span id="g-protocol-text"></span> <button id="g-new-protocol" type="button" class="g-secondary">새 질문 방식으로 별도 시작</button></div>
+<div id="g-external-pilot-note" class="g-pilot-note" hidden>시제품 경로 선택 설문 · 응답은 시제품 평가와 로봇의 경로 선호 연구에 사용됩니다.</div>
 <nav class="g-steps" aria-label="참여 순서"><span>참여 동의</span><span>시작 전 질문</span><span>RUBI 알아보기</span><span>길 선택</span><span>완료</span></nav>
 <section id="g-welcome" class="g-panel">
 <p class="g-eyebrow">로봇의 이동 경로에 대한 설문</p><h1 tabindex="-1">RUBI가 이동할 길을 정해 주세요.</h1>
@@ -79,7 +80,7 @@ $('app').innerHTML=`
 <div class="g-choices g-binary-choices"><button id="g-choose-a">A로 보내기</button><button id="g-choose-b">B로 보내기</button></div>
 <details class="g-skip"><summary>정보가 부족해 고르기 어렵나요?</summary><p>다시 본 뒤에도 고르기 어렵다면 이번 문항을 넘길 수 있습니다. 이 응답은 경로 선호와 별도로 저장합니다.</p><button id="g-skip" class="g-secondary">정보가 부족해 이번 문항 넘기기</button></details></section></div>
 <section id="g-saving" class="g-panel g-centred" hidden><h1 tabindex="-1">답변을 저장하고 있어요.</h1><p id="g-save-status" role="status" aria-live="polite">저장되면 다음 문항으로 넘어갑니다.</p><button id="g-save-retry" class="g-primary" hidden>저장 다시 시도하기</button></section>
-<section id="g-complete" class="g-panel g-centred" hidden><p class="g-eyebrow">참여 완료</p><h1 tabindex="-1">감사합니다.</h1><p id="g-complete-message">모든 답변이 저장되었습니다. 이제 창을 닫으셔도 됩니다.</p><button id="g-restart" class="g-primary">처음부터 다시 해보기</button><p class="g-muted">앞서 저장한 답변은 그대로 남고, 새 참여 기록이 만들어집니다.</p></section>
+<section id="g-complete" class="g-panel g-centred" hidden><p class="g-eyebrow">참여 완료</p><h1 tabindex="-1">감사합니다.</h1><p id="g-complete-message">모든 답변이 저장되었습니다. 이제 창을 닫으셔도 됩니다.</p><button id="g-restart" class="g-primary">처음부터 다시 해보기</button><p id="g-restart-note" class="g-muted">앞서 저장한 답변은 그대로 남고, 새 참여 기록이 만들어집니다.</p></section>
 </main><footer class="g-footer">RUBI · 로봇의 길 선택 설문<span id="g-storage-status"></span></footer>`;
 
 const introduction=new IntroVideo($('g-intro'));
@@ -92,13 +93,16 @@ let trialStart=0,decisionStart=0,previewEvents:ViewEvent[]=[],replays={direct:0,
 let coverage={direct:new Coverage(),detour:new Coverage()};
 let finalizing=false,selecting=false,modelCreateCount=0,onnxCreateCount=0;
 let observationTask:Promise<void>|undefined,finishRequested=false,reviewing=false;
-const storageKey=()=>collectionStorageKey(study.id,UX_PROTOCOL,isUiCheckStudy(study));
+const storageKey=()=>collectionStorageKey(study.id,UX_PROTOCOL,collectionPurpose(study));
 const fail=(e:unknown)=>{$('g-error').textContent=String(e instanceof Error?e.message:e);$('g-error').hidden=false;};
 const clearError=()=>{$('g-error').hidden=true;};
 const save=()=>{localStorage.setItem(storageKey(),JSON.stringify(state));};
 const selectValue=(id:string)=>$<HTMLSelectElement>(id).value;
 const eligible=()=>canChoose(seen,{direct:runs.direct?.completed,detour:runs.detour?.completed});
 function show(next:Phase){
+  $('g-external-pilot-note').hidden=!isExternalPilotStudy(study);
+  btn('g-restart').hidden=isExternalPilotStudy(study);
+  $('g-restart-note').textContent=isExternalPilotStudy(study)?'참여해 주셔서 감사합니다. 같은 설문에는 한 번만 참여해 주세요.':'앞서 저장한 답변은 그대로 남고, 새 참여 기록이 만들어집니다.';
   $('g-ui-check-note').hidden=!isUiCheckStudy(study);
   $('g-ui-check-id').textContent=isUiCheckStudy(study)?`점검 ID: ${state?.id??''}`:'';
   $('g-protocol-note').hidden=UX_PROTOCOL!=='height-blocks-binary-v7'||study.status!=='released'||!['welcome','complete'].includes(next);
@@ -250,7 +254,7 @@ async function finalize(){
   }catch(e){fail(e);btn('g-save-retry').hidden=false;}finally{finalizing=false;}
 }
 function freshSession(participantId:string,previous?:Session):Session{
-  return {id:createSessionId(isUiCheckStudy(study)),participantId,startedAt:new Date().toISOString(),plan:createBlockPlan(crypto.getRandomValues(new Uint32Array(1))[0],study.heightBlocks!.heightsCm),index:0,consent:false,tutorialCompleted:false,complete:false,responses:[],repeatIndex:previous?(previous.repeatIndex??0)+1:0,previousSessionId:previous?.id};
+  return {id:createSessionId(collectionPurpose(study)),participantId,startedAt:new Date().toISOString(),plan:createBlockPlan(crypto.getRandomValues(new Uint32Array(1))[0],study.heightBlocks!.heightsCm),index:0,consent:false,tutorialCompleted:false,complete:false,responses:[],repeatIndex:previous?(previous.repeatIndex??0)+1:0,previousSessionId:previous?.id};
 }
 function restart(){
   if(running||selecting||finalizing||state.pending){fail('저장 중이거나 아직 저장하지 못한 답변이 있습니다. 먼저 저장을 마쳐 주세요.');return;}
@@ -308,7 +312,7 @@ async function bootstrap(){
     let restored:Session|undefined;try{restored=JSON.parse(localStorage.getItem(storageKey())??'null')??undefined;}catch{}
     let valid=false;
     if(restored){
-      if(!sessionMatchesPurpose(restored.id,isUiCheckStudy(study))||(restored.plan?.version!==BLOCK_RULE||!validBlockPlan(restored.plan,study.heightBlocks.heightsCm))||!Array.isArray(restored.responses)||restored.index!==restored.responses.length)throw new Error('이 기기의 진행 기록을 확인해야 합니다. 기록을 지우지 말고 연구자에게 알려 주세요.');
+      if(!sessionMatchesPurpose(restored.id,collectionPurpose(study))||(restored.plan?.version!==BLOCK_RULE||!validBlockPlan(restored.plan,study.heightBlocks.heightsCm))||!Array.isArray(restored.responses)||restored.index!==restored.responses.length)throw new Error('이 기기의 진행 기록을 확인해야 합니다. 기록을 지우지 말고 연구자에게 알려 주세요.');
       nextBlockQuestion(restored.plan,restored.responses as unknown as BlockAnswer[]);valid=true;
     }
     const participantKey='RUBI_Human_Preference_Path:rubi-hpp-participant';const participantId=localStorage.getItem(participantKey)?JSON.parse(localStorage.getItem(participantKey)!):crypto.randomUUID();localStorage.setItem(participantKey,JSON.stringify(participantId));
