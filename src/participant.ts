@@ -17,10 +17,13 @@ import {OBSERVATION_POLICY,canFinishViewing,preserveAndRestart} from './core/obs
 import {routeChoice,isBinaryAnswer,assertIntroAssets,introRecordVersion} from './core/binary-study.ts';
 import type {BinaryAnswer} from './core/binary-study.ts';
 import {IntroVideo} from './runtime/intro-video.ts';
-import {BLOCK_PROTOCOL as UX_PROTOCOL,BLOCK_LABEL_CONDITION as UX_LABEL_CONDITION,BLOCK_RULE,CANDIDATE_SET,COLLECTOR_VERSION,createBlockPlan,validBlockPlan,nextBlockQuestion,questionCount,acknowledgeAnswer} from './core/height-block-study.ts';
-import type {BlockPlan,BlockAnswer,BlockQuestion} from './core/height-block-study.ts';
+import {questionProtocol,validBlockPlan,nextBlockQuestion,questionCount,acknowledgeAnswer} from './core/question-protocol.ts';
+import {loadStudy} from './runtime/study-selection.ts';
+let UX_PROTOCOL='height-blocks-binary-v7',UX_LABEL_CONDITION='',BLOCK_RULE='',CANDIDATE_SET='',COLLECTOR_VERSION='';
+const createBlockPlan=(seed:number,heights:number[])=>questionProtocol(UX_PROTOCOL).createBlockPlan(seed,heights);
+import type {BlockPlan,BlockAnswer,BlockQuestion} from './core/question-protocol.ts';
 
-type Study={collectionPhase?:string;id:string;status:'draft'|'released';responseApi:string;bundleBaseUrl:string;scenarios:PilotScene[];guidedScenarios?:PilotScene[];heightBlocks?:{version:string;heightsCm:number[];detoursMm:number[];questionsPerHeight:number};introduction?:{manifestUrl:string}};
+type Study={protocolVersion:string;requiredReleaseVersion?:string;datasetTag?:string;collectionPhase?:string;id:string;status:'draft'|'released';responseApi:string;bundleBaseUrl:string;scenarios:PilotScene[];guidedScenarios?:PilotScene[];heightBlocks?:{version:string;heightsCm:number[];detoursMm:number[];questionsPerHeight:number};introduction?:{manifestUrl:string}};
 type Phase='welcome'|'profile'|'intro'|'loading'|'observe'|'choice'|'saving'|'complete';
 type Session={id:string;participantId:string;startedAt:string;plan:BlockPlan;index:number;profile?:ProfileAnswers;consent:boolean;tutorialCompleted:boolean;complete:boolean;pending?:Record<string,unknown>;responses:Record<string,unknown>[];repeatIndex?:number;previousSessionId?:string;introduction?:{version:string;contentId:string;acknowledgedAtUtc:string}};
 type ViewEvent={route:RouteKey;atMs:number;mode:'live'|'replay';shownSeconds:number;shownUntil:number;visibleWallMs:number;maxGapMs:number;earlyFinish:boolean;qualified:boolean;interrupted:boolean};
@@ -32,6 +35,7 @@ $('app').innerHTML=`
 <div id="g-error" class="g-error" role="alert" hidden></div>
 <div id="g-pilot-note" class="g-pilot-note" hidden>현재는 설문을 시험하는 단계입니다. 이번 답변은 정식 조사와 구분해 보관합니다.</div>
 <div id="g-ui-check-note" class="g-pilot-note" role="status" hidden>본 조사 저장을 확인하는 최종 점검입니다. 이번 응답은 본 조사 분석에서 제외합니다.<br><span id="g-ui-check-id"></span></div>
+<div id="g-protocol-note" class="g-pilot-note" hidden><span id="g-protocol-text"></span> <button id="g-new-protocol" type="button" class="g-secondary">새 질문 방식으로 별도 시작</button></div>
 <nav class="g-steps" aria-label="참여 순서"><span>참여 동의</span><span>시작 전 질문</span><span>RUBI 알아보기</span><span>길 선택</span><span>완료</span></nav>
 <section id="g-welcome" class="g-panel">
 <p class="g-eyebrow">로봇의 이동 경로에 대한 설문</p><h1 tabindex="-1">RUBI가 이동할 길을 정해 주세요.</h1>
@@ -97,6 +101,9 @@ const eligible=()=>canChoose(seen,{direct:runs.direct?.completed,detour:runs.det
 function show(next:Phase){
   $('g-ui-check-note').hidden=!isUiCheckStudy(study);
   $('g-ui-check-id').textContent=isUiCheckStudy(study)?`점검 ID: ${state?.id??''}`:'';
+  $('g-protocol-note').hidden=UX_PROTOCOL!=='height-blocks-binary-v7'||study.status!=='released'||!['welcome','complete'].includes(next);
+  $('g-protocol-text').textContent='이전에 시작한 참여를 기존 0.4–1.6 m 규칙으로 이어갑니다. 새 방식은 별도 참여로 시작합니다.';
+  btn('g-new-protocol').disabled=Boolean(state?.pending);
   phase=next;for(const name of ['welcome','profile','intro','loading','observe','choice','saving','complete'])$(`g-${name}`).hidden=name!==next;
   if(next!=='intro')introduction.pause();
   const compare=next==='choice'||(next==='observe'&&reviewing&&eligible());if(compare){$('g-observe').hidden=false;$('g-choice').hidden=false;}
@@ -134,9 +141,10 @@ function nextTrial(){
 }
 async function connect(){
   if(!study.responseApi)throw new Error('답변을 저장할 곳에 연결하지 못했습니다. 연구자에게 알려 주세요.');
-  collector?.dispose();collector=new AppsScriptTransport(study.responseApi);let reply;try{reply=await collector.ping(study.id,study.status);}catch(e){if(String(e).includes('experimentId'))throw new Error('저장 서비스 업데이트가 필요합니다. 연구자는 새 Code.gs로 기존 Apps Script 배포를 갱신해 주세요.');throw e;}
+  collector?.dispose();collector=new AppsScriptTransport(study.responseApi);let reply;try{reply=await collector.ping(study.id,study.status,study.protocolVersion);}catch(e){if(String(e).includes('experimentId'))throw new Error('저장 서비스 업데이트가 필요합니다. 연구자는 새 Code.gs로 기존 Apps Script 배포를 갱신해 주세요.');throw e;}
   if(reply.service!=='rubi-hpp'||reply.experimentId!==study.id||reply.studyStatus!==study.status)throw new Error('설문과 저장 서비스의 설정이 다릅니다. 연구자에게 알려 주세요.');
   if(reply.collectorVersion!==COLLECTOR_VERSION)throw new Error('저장 서비스 업데이트가 필요합니다. 연구자는 새 Code.gs로 기존 Apps Script 배포를 갱신해 주세요.');
+  if(study.requiredReleaseVersion&&reply.releaseVersion!==study.requiredReleaseVersion)throw new Error('새 질문 수집기 업데이트가 필요합니다. 기존 Apps Script에 v9 완성본을 배포해 주세요.');
   $('g-storage-status').textContent='답변 저장 연결됨';
 }
 async function prepare(){
@@ -208,7 +216,7 @@ async function choose(choice:BinaryAnswer){
     abort?.abort();await observationTask;
     if(!introduction.manifest||!state.introduction)throw new Error('소개 영상 정보가 없습니다.');
     const payload={schemaVersion:1,consent:true,submissionId:crypto.randomUUID(),participantId:state.participantId,sessionId:state.id,
-      experimentId:study.id,studyStatus:study.status,protocolVersion:UX_PROTOCOL,trialId:`block-v7-${query.blockIndex}-${query.trialInBlock}-${scenario.id}`,trialSequence:state.index+1,isPractice:false,
+      experimentId:study.id,studyStatus:study.status,protocolVersion:UX_PROTOCOL,trialId:`${UX_PROTOCOL}-${query.blockIndex}-${query.trialInBlock}-${scenario.id}`,trialSequence:state.index+1,isPractice:false,
       scenario:{...scenario,lengthMetric:'planned_xy_polyline',crossingType:'platform_ascent_and_descent'},choice,skipReason:choice==='skip'?'insufficient_information':'',
       presentation:{a:aKey,b:bKey},runs:{direct:summary(runs.direct!),detour:summary(runs.detour!)},hashes:bundle!.hashes,
       previewCoverage:{direct:coverage.direct.fraction(runs.direct!.duration),detour:coverage.detour.fraction(runs.detour!.duration)},viewTime:{...viewTime},replays:{...replays},previewEvents:previewEvents.map(e=>({...e})),
@@ -253,6 +261,11 @@ function restart(){
     btn('g-reset-welcome').hidden=true;if(viewer)viewer.robot.visible=false;show('welcome');
   }catch(e){fail(e);}
 }
+btn('g-new-protocol').onclick=()=>{
+  if(state.pending||running||selecting||finalizing)return;
+  if(!confirm('기존 응답은 보존하고, 새 0.4–2.4 m 규칙으로 별도의 점검 참여를 시작할까요?'))return;
+  const url=new URL(location.href);url.searchParams.set('protocol','current');location.href=url.href;
+};
 btn('g-restart').onclick=restart;btn('g-reset-welcome').onclick=restart;
 btn('g-start').onclick=()=>{
   if(!$<HTMLInputElement>('g-consent').checked)return;state.consent=true;
@@ -284,8 +297,10 @@ btn('g-skip').onclick=()=>{if(confirm('정보가 부족해 이번 문항을 넘�
 btn('g-save-retry').onclick=()=>{if(state.pending)void sendPending();else void finalize();};
 async function bootstrap(){
   try{
-    const res=await fetch(`${import.meta.env.BASE_URL}study.json`,{cache:'no-cache'});if(!res.ok)throw new Error('설문을 불러오지 못했습니다. 새로고침해 주세요.');study=await res.json();scenes=study.guidedScenarios??study.scenarios;
-    if(!['draft','released'].includes(study.status)||study.heightBlocks?.version!==BLOCK_RULE||study.heightBlocks.questionsPerHeight!==4||JSON.stringify(study.heightBlocks.detoursMm)!=='[400,600,800,1000,1200,1400,1600]')throw new Error('높이별 설문 설정을 확인해 주세요.');
+    study=await loadStudy() as Study;scenes=study.guidedScenarios??study.scenarios;
+    const protocol=questionProtocol(study.protocolVersion);
+    ({BLOCK_PROTOCOL:UX_PROTOCOL,BLOCK_LABEL_CONDITION:UX_LABEL_CONDITION,BLOCK_RULE,CANDIDATE_SET,COLLECTOR_VERSION}=protocol);
+    if(!['draft','released'].includes(study.status)||study.heightBlocks?.version!==BLOCK_RULE||study.heightBlocks.questionsPerHeight!==4||JSON.stringify(study.heightBlocks.detoursMm)!==JSON.stringify(protocol.DETOURS_MM))throw new Error('높이별 설문 설정을 확인해 주세요.');
     const example=createBlockPlan(0,study.heightBlocks.heightsCm);total=questionCount(example);
     scenes=study.heightBlocks.heightsCm.flatMap(h=>study.heightBlocks!.detoursMm.map(d=>({height:h/100,detour:d/1000,speed:.5})));
     scenes.forEach(s=>makeScenario(s.height,s.detour,s.speed));
@@ -293,7 +308,7 @@ async function bootstrap(){
     let restored:Session|undefined;try{restored=JSON.parse(localStorage.getItem(storageKey())??'null')??undefined;}catch{}
     let valid=false;
     if(restored){
-      if(!sessionMatchesPurpose(restored.id,isUiCheckStudy(study))||!validBlockPlan(restored.plan,study.heightBlocks.heightsCm)||!Array.isArray(restored.responses)||restored.index!==restored.responses.length)throw new Error('이 기기의 진행 기록을 확인해야 합니다. 기록을 지우지 말고 연구자에게 알려 주세요.');
+      if(!sessionMatchesPurpose(restored.id,isUiCheckStudy(study))||(restored.plan?.version!==BLOCK_RULE||!validBlockPlan(restored.plan,study.heightBlocks.heightsCm))||!Array.isArray(restored.responses)||restored.index!==restored.responses.length)throw new Error('이 기기의 진행 기록을 확인해야 합니다. 기록을 지우지 말고 연구자에게 알려 주세요.');
       nextBlockQuestion(restored.plan,restored.responses as unknown as BlockAnswer[]);valid=true;
     }
     const participantKey='RUBI_Human_Preference_Path:rubi-hpp-participant';const participantId=localStorage.getItem(participantKey)?JSON.parse(localStorage.getItem(participantKey)!):crypto.randomUUID();localStorage.setItem(participantKey,JSON.stringify(participantId));

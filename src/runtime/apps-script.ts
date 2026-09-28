@@ -10,6 +10,10 @@ export type AppsScriptReply = {
   experimentId?: string;
   studyStatus?: string;
   message?: string;
+  releaseVersion?: string;
+  datasetTag?: string;
+  collectionOpen?: boolean;
+  supportedProtocols?: string[];
 };
 
 export function appsScriptEndpoint(value:string): string {
@@ -63,7 +67,7 @@ export class AppsScriptTransport {
       try{form.submit();}catch(e){cleanup();reject(e);}
     });
   }
-  async ping(experimentId:string,studyStatus:string){
-    return this.request('ping',{experimentId,studyStatus},10000);
+  async ping(experimentId:string,studyStatus:string,protocolVersion?:string){
+    return this.request('ping',{experimentId,studyStatus,...(protocolVersion?{protocolVersion}:{})},10000);
   }
 }
