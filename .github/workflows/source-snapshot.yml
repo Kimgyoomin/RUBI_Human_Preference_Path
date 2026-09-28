@@ -1,0 +1,22 @@
+name: Protocol refactor source snapshot
+on:
+  push:
+    branches: [audit/no-repeat-source-v9]
+    paths: ['.github/workflows/source-snapshot.yml']
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ff47cca12d5f0ffcd49950671bc92316bfbd9918
+      - run: git archive --format=zip HEAD -o /tmp/rubi-source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rubi-source-ff47cca
+          path: /tmp/rubi-source.zip
+          retention-days: 7
