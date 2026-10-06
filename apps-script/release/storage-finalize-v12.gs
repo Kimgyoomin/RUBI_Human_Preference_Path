@@ -56,6 +56,12 @@ function bulkRecordsV12_(sheet){
   return values.filter(v=>v[0]!=='').map(v=>Object.fromEntries(h.map((k,i)=>[k,v[i]])));
 }
 
+function ensureHistoryColumnV12_(sessions){
+  const h=readRetryV12_(()=>headers_(sessions));
+  if(h.includes(STORAGE_FAST.HISTORY_COLUMN))return;
+  ensureColumns_(sessions,[STORAGE_FAST.HISTORY_COLUMN]);
+}
+
 function rebuildHistoryV12_(trials,sessionId,protocolVersion){
   const rows=bulkRecordsV12_(trials)
     .filter(r=>r.sessionId===sessionId&&r.protocolVersion===protocolVersion&&r.saveState==='complete')
@@ -68,7 +74,7 @@ function loadCompletionHistoryV12_(ss,p){
   const lock=acquireStorageLockV11_();
   try{
     const sessions=sheet_(ss,'Sessions'),trials=sheet_(ss,'Trials');
-    ensureHistoryColumnV11_(sessions);
+    ensureHistoryColumnV12_(sessions);
     row=readRetryV12_(()=>findExact_(sessions,1,p.sessionId));
     if(!row||p.consent!==true)throw new Error('아직 저장된 참여 기록이 없습니다.');
     const old=readRetryV12_(()=>record_(sessions,row));
