@@ -1,0 +1,31 @@
+name: Verify external pilot v2 live
+on:
+  push:
+    branches: [audit/external-pilot-v2-live]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify public v2 config without submitting responses
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          const url='https://kimgyoomin.github.io/RUBI_Human_Preference_Path/study.json?v2audit='+Date.now();
+          let cfg;
+          for(let i=0;i<30;i++){
+            try{
+              const r=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(10000)});
+              if(r.ok){cfg=await r.json(); if(cfg.collectionPhase==='external-pilot-v2') break;}
+            }catch(e){console.log('retry',String(e));}
+            await new Promise(r=>setTimeout(r,5000));
+          }
+          if(!cfg) throw new Error('study.json unavailable');
+          if(cfg.collectionPhase!=='external-pilot-v2') throw new Error('live phase='+cfg.collectionPhase);
+          if(cfg.protocolVersion!=='height-blocks-no-repeat-v9') throw new Error('protocol='+cfg.protocolVersion);
+          if(cfg.requiredReleaseVersion!=='no-repeat-collector-v9') throw new Error('collector='+cfg.requiredReleaseVersion);
+          if(JSON.stringify(cfg.heightBlocks?.detoursMm)!==JSON.stringify([400,600,800,1000,1200,1400,1600,1800,2000,2200,2400])) throw new Error('detour candidates changed');
+          console.log('EXTERNAL_PILOT_V2_LIVE_PASS',JSON.stringify({phase:cfg.collectionPhase,protocol:cfg.protocolVersion,collector:cfg.requiredReleaseVersion}));
+          NODE
