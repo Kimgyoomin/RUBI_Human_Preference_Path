@@ -1,0 +1,45 @@
+name: Verify v9 storage hotfix v10
+on:
+  push:
+    branches: [hotfix/v9-storage-transaction-v10]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Focused storage recovery tests
+        run: node --test tests/storage-hotfix-v10.test.mjs tests/no-repeat-v9.test.mjs tests/collector-recovery.test.mjs
+      - name: Full test suite
+        run: npm test
+      - name: Build paste-ready collector
+        run: |
+          node tools/build-storage-hotfix-collector.mjs artifacts/RUBI_Collector_v9_storage_hotfix_v10_Code.gs
+          sha256sum artifacts/RUBI_Collector_v9_storage_hotfix_v10_Code.gs | tee artifacts/SHA256.txt
+          cp apps-script/release/storage-hotfix-v10.gs artifacts/storage-hotfix-v10-source.gs
+          cat > artifacts/README_KO.txt <<'TXT'
+          RUBI Human Preference Path v9 storage hotfix v10
+          - 기존 Apps Script 프로젝트의 Code.gs 전체를 RUBI_Collector_v9_storage_hotfix_v10_Code.gs 내용으로 교체
+          - 새 Apps Script 프로젝트/새 Google Sheet를 만들지 않음
+          - 기존 배포를 '새 버전'으로 갱신하여 동일 deployment ID와 /exec URL 유지
+          - RUBI_MAIN_COLLECTION_OPEN=true 유지
+          - 질문 구조/로봇/ONNX/Google Sheet ID/protocolVersion은 변경하지 않음
+          - 실제 연구 Google Sheet에는 이 CI가 POST하지 않음
+          TXT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RUBI-v9-storage-hotfix-v10
+          path: |
+            artifacts/RUBI_Collector_v9_storage_hotfix_v10_Code.gs
+            artifacts/RUBI_Collector_v9_storage_hotfix_v10_Code.txt
+            artifacts/storage-hotfix-v10-source.gs
+            artifacts/SHA256.txt
+            artifacts/README_KO.txt
+          if-no-files-found: error
