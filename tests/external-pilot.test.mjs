@@ -11,7 +11,7 @@ const legacy=JSON.parse(fs.readFileSync('public/study.legacy-v7.json'));
 const uuid='00000000-0000-4000-8000-000000000012';
 test('external launch changes purpose, never questions, API, policies or collector requirements',()=>{
  const {collectionPhase:cp,...c}=current,{collectionPhase:dp,...d}=check;
- assert.equal(cp,EXTERNAL_PILOT_PHASE);assert.equal(dp,'owner-ui-check-v1');assert.deepEqual(c,d);
+ assert.equal(cp,EXTERNAL_PILOT_PHASE);assert.equal(cp,'external-pilot-v2');assert.equal(dp,'owner-ui-check-v1');assert.deepEqual(c,d);
  assert.equal(collectionPurpose(current),EXTERNAL_PILOT_PHASE);assert.ok(isExternalPilotStudy(current));
  assert.notEqual(collectionStorageKey(current.id,current.protocolVersion,EXTERNAL_PILOT_PHASE),collectionStorageKey(check.id,check.protocolVersion,true));
  assert.equal(createSessionId(EXTERNAL_PILOT_PHASE,uuid),'pilot-'+uuid);
@@ -19,6 +19,15 @@ test('external launch changes purpose, never questions, API, policies or collect
  assert.ok(!sessionMatchesPurpose('ui-check-'+uuid,EXTERNAL_PILOT_PHASE));
  assert.ok(!sessionMatchesPurpose('pilot-'+uuid,true));
  assert.throws(()=>collectionPurpose({collectionPhase:'typo'}));
+});
+test('v2 rotates only local browser storage; old v1 state remains untouched and is never resumed',()=>{
+ const map=new Map(),store={getItem:k=>map.get(k)??null};
+ const oldPilotKey=`RUBI_Human_Preference_Path:${current.id}:${current.protocolVersion}:external-pilot-v1`;
+ const oldRaw=JSON.stringify({id:'pilot-'+uuid,consent:true,complete:false,responses:[{}]});
+ map.set(oldPilotKey,oldRaw);
+ assert.equal(chooseStudy(current,legacy,store,null),current);
+ assert.equal(map.get(oldPilotKey),oldRaw);
+ assert.equal(map.get(collectionStorageKey(current.id,current.protocolVersion,EXTERNAL_PILOT_PHASE)),undefined);
 });
 test('no automatic migration of old developer sessions; explicit test route still resumes',()=>{
  const map=new Map(),store={getItem:k=>map.get(k)??null};

@@ -10,7 +10,7 @@ import {collectionStorageKey,EXTERNAL_PILOT_PHASE} from '../src/ui-session.ts';
 const origin='http://127.0.0.1:4173';
 const base=origin+'/RUBI_Human_Preference_Path/';
 const main=JSON.parse(await readFile('public/study.json','utf8'));
-assert.equal(main.id,'rubi-hpp-main-v1');assert.equal(main.status,'released');assert.equal(main.collectionPhase,'external-pilot-v1');
+assert.equal(main.id,'rubi-hpp-main-v1');assert.equal(main.status,'released');assert.equal(main.collectionPhase,EXTERNAL_PILOT_PHASE);
 const boundary=JSON.parse(await readFile('artifacts/public-build-boundary.json','utf8'));
 assert.equal(boundary.participantOnly,true);assert.deepEqual(boundary.researchModules,[]);
 assert.ok(!(await readdir('dist')).some(n=>['api','apps-script','src','config'].includes(n)));

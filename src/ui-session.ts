@@ -1,7 +1,9 @@
 /** Collection-purpose labels never grant admin access or enable server writes. */
 export const UI_CHECK_PHASE = 'owner-ui-check-v1';
 export const UI_CHECK_PREFIX = 'ui-check-';
-export const EXTERNAL_PILOT_PHASE = 'external-pilot-v1';
+// v2 intentionally rotates only the browser namespace after the 2026-10-06 live-sheet reset.
+// Existing external-pilot-v1 tabs keep their already-loaded bundle/session and server records.
+export const EXTERNAL_PILOT_PHASE = 'external-pilot-v2';
 export const EXTERNAL_PILOT_PREFIX = 'pilot-';
 export type CollectionPurpose = typeof UI_CHECK_PHASE | typeof EXTERNAL_PILOT_PHASE | 'survey';
 type PurposeInput = boolean | CollectionPurpose;
