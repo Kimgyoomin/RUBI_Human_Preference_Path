@@ -56,6 +56,33 @@ function bulkRecordsV12_(sheet){
   return values.filter(v=>v[0]!=='').map(v=>Object.fromEntries(h.map((k,i)=>[k,v[i]])));
 }
 
+function rebuildHistoryV12_(trials,sessionId,protocolVersion){
+  const rows=bulkRecordsV12_(trials)
+    .filter(r=>r.sessionId===sessionId&&r.protocolVersion===protocolVersion&&r.saveState==='complete')
+    .sort((a,b)=>Number(a.trialSequence)-Number(b.trialSequence));
+  return validateHistoryV11_(rows.map(historyEntryFromTrialV11_));
+}
+
+function loadCompletionHistoryV12_(ss,p){
+  let history,row;
+  const lock=acquireStorageLockV11_();
+  try{
+    const sessions=sheet_(ss,'Sessions'),trials=sheet_(ss,'Trials');
+    ensureHistoryColumnV11_(sessions);
+    row=readRetryV12_(()=>findExact_(sessions,1,p.sessionId));
+    if(!row||p.consent!==true)throw new Error('아직 저장된 참여 기록이 없습니다.');
+    const old=readRetryV12_(()=>record_(sessions,row));
+    assertIdentity_(old,{participantId:p.participantId,experimentId:p.experimentId,protocolVersion:p.protocolVersion});
+    history=parseHistoryV11_(old[STORAGE_FAST.HISTORY_COLUMN]);
+    if(history===null){
+      history=rebuildHistoryV12_(trials,p.sessionId,p.protocolVersion);
+      updateMapped_(sessions,row,{committedHistoryJson:history,savedTrials:history.length});
+      SpreadsheetApp.flush();
+    }
+  }finally{lock.releaseLock();}
+  return {row,history};
+}
+
 function verifyCompletionLinksV12_(ss,p,history){
   if(history.length!==16||history.some((x,i)=>Number(x.trialSequence)!==i+1))
     throw new Error('아직 저장되지 않은 문항이 있습니다. 완료 처리하지 않았습니다.');
@@ -88,7 +115,7 @@ function saveNoRepeatProfileV12_(ss,p){
   const knew=enum_(p.knewRubiBeforeStudy,['yes','no','unsure','prefer_not_to_say'],'knewRubiBeforeStudy');
   const exposure=enum_(p.rubiExposureBeforeStudy,['none','video_only','in_person','both','unsure','prefer_not_to_say'],'rubiExposureBeforeStudy');
 
-  const loaded=loadCompletionHistoryV11_(ss,p);
+  const loaded=loadCompletionHistoryV12_(ss,p);
   verifyCompletionLinksV12_(ss,p,loaded.history);
 
   let duplicate=false;
