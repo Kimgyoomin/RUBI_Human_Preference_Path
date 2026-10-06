@@ -1,0 +1,47 @@
+name: Verify v9 storage fast hotfix v11
+on:
+  push:
+    branches: [hotfix/v9-storage-fast-v11]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Focused fast-storage tests
+        run: node --test tests/storage-fast-v11.test.mjs tests/storage-hotfix-v10.test.mjs tests/no-repeat-v9.test.mjs tests/collector-recovery.test.mjs
+      - name: Full test suite
+        run: npm test
+      - name: Build paste-ready v11 collector
+        run: |
+          node tools/build-storage-fast-collector.mjs artifacts/RUBI_Collector_v9_storage_fast_v11_Code.gs
+          sha256sum artifacts/RUBI_Collector_v9_storage_fast_v11_Code.gs | tee artifacts/SHA256.txt
+          cp apps-script/release/storage-fast-v11.gs artifacts/storage-fast-v11-source.gs
+          cat > artifacts/README_KO.txt <<'TXT'
+          RUBI Human Preference Path v9 storage fast hotfix v11
+          - 기존 Apps Script 프로젝트의 Code.gs 전체를 RUBI_Collector_v9_storage_fast_v11_Code.gs 내용으로 교체
+          - 새 Google Sheet/새 Apps Script 프로젝트 생성 금지
+          - 기존 배포를 새 버전으로 갱신하여 동일 deployment ID와 /exec URL 유지
+          - RUBI_MAIN_COLLECTION_OPEN=true 유지
+          - 질문/로봇/ONNX/protocolVersion/Google Sheet ID는 변경하지 않음
+          - v10 무결성 복구를 유지하면서 정상 trial 저장의 explicit SpreadsheetApp.flush()를 1회로 축소
+          - Sessions.committedHistoryJson 컬럼은 첫 v11 저장 시 자동 추가; 기존 세션은 Trials에서 1회 복구 후 사용
+          - CI는 실제 연구 Google Sheet에 trial/profile POST를 하지 않음
+          TXT
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RUBI-v9-storage-fast-v11
+          path: |
+            artifacts/RUBI_Collector_v9_storage_fast_v11_Code.gs
+            artifacts/RUBI_Collector_v9_storage_fast_v11_Code.txt
+            artifacts/storage-fast-v11-source.gs
+            artifacts/SHA256.txt
+            artifacts/README_KO.txt
+          if-no-files-found: error

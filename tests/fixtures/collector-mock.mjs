@@ -8,27 +8,28 @@ export const HEADERS={
  Sessions:'sessionId schemaVersion participantId experimentId protocolVersion tutorialVersion consentVersion consentGranted tutorialCompleted startedAtUtc endedAtUtc status browserFamily viewportWidth viewportHeight appCommit profileSchemaVersion roboticsRelatedExperience knewRubiBeforeStudy rubiExposureBeforeStudy profileCompleted profileCompletedAtUtc analysisGroup groupingRuleVersion profileAnsweredAtUtc expectedTrials savedTrials questionPlanJson'.split(' ')
 };
 export function mockCollector(options={}){
- let writes=0,failed=false,held=false;const sheets={},openedIds=[];const properties=new Map(Object.entries(options.properties||{}));
+ let writes=0,failed=false,held=false,lockAttempts=0,flushes=0,reads=0,openAttempts=0,sleeps=0,readFailuresRemaining=options.readFailCount||0,openFailuresRemaining=options.openFailCount||0;const sheets={},openedIds=[];const properties=new Map(Object.entries(options.properties||{}));
  function write(fn){writes++;if(!failed&&options.failAt===writes&&options.when!=='after'){failed=true;throw Error('injected write failure');}fn();if(!failed&&options.failAt===writes&&options.when==='after'){failed=true;throw Error('injected write failure after commit');}}
  class Sheet{
   constructor(name){this.name=name;this.data=[[...HEADERS[name]]];this.maxRows=1000;this.maxCols=HEADERS[name].length;}
   getName(){return this.name;}getLastRow(){for(let i=this.data.length-1;i>=0;i--)if(this.data[i]?.some(v=>v!==''&&v!==undefined))return i+1;return 0;}
   getLastColumn(){return this.data[0].length;}getMaxRows(){return this.maxRows;}getMaxColumns(){return this.maxCols;}
   insertRowsAfter(_,n){this.maxRows+=n;}insertColumnsAfter(_,n){this.maxCols+=n;}
+  appendRow(values){const self=this;write(()=>{const row=self.getLastRow()+1;self.data[row-1]=[...values];});return this;}
   getRange(row,col,nr=1,nc=1){const self=this;return {
-   getValues:()=>Array.from({length:nr},(_,r)=>Array.from({length:nc},(_,c)=>self.data[row+r-1]?.[col+c-1]??'')),
+   getValues:()=>{reads++;if(readFailuresRemaining>0){readFailuresRemaining--;throw Error('Service Spreadsheets failed while accessing document');}return Array.from({length:nr},(_,r)=>Array.from({length:nc},(_,c)=>self.data[row+r-1]?.[col+c-1]??''));},
    setValues(values){write(()=>values.forEach((v,r)=>{self.data[row+r-1]??=[];v.forEach((x,c)=>self.data[row+r-1][col+c-1]=x);}));return this;},
-   createTextFinder(value){return {matchEntireCell(){return this;},findNext(){for(let i=0;i<nr;i++)if(String(self.data[row+i-1]?.[col-1]??'')===String(value))return {getRow:()=>row+i};return null;}};}
+   createTextFinder(value){return {matchEntireCell(){return this;},findNext(){for(let i=0;i<nr;i++)if(String(self.data[row+i-1]?.[col-1]??'')===String(value))return {getRow:()=>row+i};return null;},findAll(){const out=[];for(let i=0;i<nr;i++)if(String(self.data[row+i-1]?.[col-1]??'')===String(value))out.push({getRow:()=>row+i});return out;}};}
   };}
  }
  for(const name of Object.keys(HEADERS))sheets[name]=new Sheet(name);
  if(options.checkboxDefaults)for(let i=1;i<1000;i++){sheets.Sessions.data[i]??=[];sheets.Sessions.data[i][20]=false;}
- const context=vm.createContext({console,SpreadsheetApp:{openById:id=>{openedIds.push(id);if(options.targetId&&options.targetId!==id)throw Error('wrong spreadsheet target');return {getSheetByName:n=>sheets[n]};},flush:()=>write(()=>{})},
+ const context=vm.createContext({console,SpreadsheetApp:{openById:id=>{openAttempts++;if(openFailuresRemaining>0){openFailuresRemaining--;throw Error('Service Spreadsheets failed while accessing document');}openedIds.push(id);if(options.targetId&&options.targetId!==id)throw Error('wrong spreadsheet target');return {getSheetByName:n=>sheets[n]};},flush:()=>{flushes++;write(()=>{});}},
   PropertiesService:{getScriptProperties:()=>({getProperty:k=>properties.get(k)??null,setProperty:(k,v)=>properties.set(k,v)})},
-  LockService:{getScriptLock:()=>({tryLock:()=>{if(held)return false;held=true;return true;},releaseLock:()=>{held=false;}})},
-  Utilities:{DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},computeDigest:(_,s)=>[...createHash('sha256').update(s).digest()]}});
+  LockService:{getScriptLock:()=>({tryLock:()=>{lockAttempts++;if(options.lockFailCount&&lockAttempts<=options.lockFailCount)return false;if(held)return false;held=true;return true;},releaseLock:()=>{held=false;}})},
+  Utilities:{DigestAlgorithm:{SHA_256:'sha256'},Charset:{UTF_8:'utf8'},computeDigest:(_,s)=>[...createHash('sha256').update(s).digest()],sleep:()=>{sleeps++;}}});
  vm.runInContext(options.source||fs.readFileSync(new URL('../../apps-script/Code.gs',import.meta.url),'utf8'),context);
  const call=(kind,payload)=>{context.__request={kind,payload};return JSON.parse(JSON.stringify(vm.runInContext((options.handler||'handleRequest_')+'(__request)',context)));};
  const rows=name=>sheets[name].data.slice(1).filter(r=>r?.[0]).map(r=>Object.fromEntries(sheets[name].data[0].map((k,i)=>[k,r[i]??''])));
- return {call,rows,sheets,context,properties,openedIds,get writes(){return writes;},get held(){return held;}};
+ return {call,rows,sheets,context,properties,openedIds,get writes(){return writes;},get held(){return held;},get lockAttempts(){return lockAttempts;},get flushes(){return flushes;},get reads(){return reads;},get openAttempts(){return openAttempts;},get sleeps(){return sleeps;},failNextReads(n=1){readFailuresRemaining=n;},failNextOpens(n=1){openFailuresRemaining=n;}};
 }
