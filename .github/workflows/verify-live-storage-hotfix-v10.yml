@@ -1,4 +1,4 @@
-name: Verify live storage hotfix v10
+name: Verify live storage fast v11
 on:
   push:
     branches: [audit/external-pilot-v2-live]
@@ -28,9 +28,9 @@ jobs:
           });
           if(!r.ok) throw new Error('HTTP '+r.status);
           const text=await r.text();
-          if(!text.includes('transactional-sheets-v10')) throw new Error('storage hotfix marker missing');
+          if(!text.includes('fast-session-state-v11')) throw new Error('storage fast marker missing');
           if(!text.includes('no-repeat-collector-v9')) throw new Error('releaseVersion mismatch');
           if(!text.includes('collectionOpen')||!text.includes('true')) throw new Error('collectionOpen not true');
-          console.log('LIVE_STORAGE_HOTFIX_V10_PASS');
+          console.log('LIVE_STORAGE_FAST_V11_PASS');
           console.log(text.replace(/\s+/g,' ').slice(0,2000));
           NODE
